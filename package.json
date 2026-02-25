@@ -1,0 +1,68 @@
+{
+  "name": "linkflow",
+  "version": "1.2.0",
+  "description": "LinkFlow - 업무 서비스 통합 관리 데스크톱 앱",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win dir",
+    "build-installer": "electron-builder --win nsis",
+    "publish": "electron-builder --win nsis --publish always"
+  },
+  "author": "handminjun504",
+  "license": "MIT",
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.linkflow.app",
+    "productName": "LinkFlow",
+    "publish": {
+      "provider": "github",
+      "owner": "handminjun504",
+      "repo": "linkflow"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LinkFlow",
+      "installerLanguages": ["ko"],
+      "language": "1042"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "preload-webview.js",
+      "icon.png",
+      "icon.ico",
+      "package.json",
+      "node_modules/electron-updater/**/*",
+      "node_modules/semver/**/*",
+      "node_modules/builder-util-runtime/**/*",
+      "node_modules/tiny-typed-emitter/**/*",
+      "node_modules/lazy-val/**/*",
+      "node_modules/lodash.isequal/**/*"
+    ],
+    "asarUnpack": [
+      "preload-webview.js"
+    ]
+  }
+}
