@@ -202,16 +202,18 @@ function createDetachedWindow(url) {
     title: 'LinkFlow',
     icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f0f4f8',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       webviewTag: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
   Menu.setApplicationMenu(null);
-  win.loadURL(url);
+  const openUrl = `${APP_URL}#__open_tab=${encodeURIComponent(url)}`;
+  win.loadURL(openUrl);
   setupWindowEvents(win);
 }
 
@@ -226,8 +228,9 @@ app.on('web-contents-created', (_event, contents) => {
       return { action: 'deny' };
     }
 
-    if (mainWindow) {
-      mainWindow.webContents.executeJavaScript(
+    const targetWin = BrowserWindow.fromWebContents(contents) || mainWindow;
+    if (targetWin) {
+      targetWin.webContents.executeJavaScript(
         `window.__electronOpenTab && window.__electronOpenTab(${JSON.stringify(url)})`
       );
     }
@@ -256,10 +259,8 @@ function createTray() {
 // ═══════ Session Cookie Persistence ═══════
 
 function setupSessionPersistence() {
-  const ses = session.fromPartition('persist:main');
+  const ses = session.defaultSession;
 
-  // Convert session cookies (no expiry) to persistent cookies (30-day expiry)
-  // so Google login etc. survives app restart
   ses.cookies.on('changed', (_event, cookie, _cause, removed) => {
     if (removed || !cookie.session) return;
     const domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
