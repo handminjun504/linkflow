@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deletePassword: (data) => ipcRenderer.invoke('pw-delete', data),
   getAllPasswords: () => ipcRenderer.invoke('pw-list'),
   deleteAllPasswords: () => ipcRenderer.invoke('pw-clear'),
+  flushCookies: () => ipcRenderer.invoke('flush-cookies'),
   loadExtension: () => ipcRenderer.invoke('ext-load'),
   removeExtension: (id) => ipcRenderer.invoke('ext-remove', id),
   listExtensions: () => ipcRenderer.invoke('ext-list'),

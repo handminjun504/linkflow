@@ -111,6 +111,14 @@ ipcMain.handle('pw-clear', () => {
   return true;
 });
 
+ipcMain.handle('flush-cookies', async () => {
+  try {
+    await session.defaultSession.cookies.flushStore();
+    await session.fromPartition('persist:main').cookies.flushStore();
+    return true;
+  } catch { return false; }
+});
+
 // ═══════ Chrome Extensions ═══════
 
 const extensionsFile = path.join(userDataPath, 'extensions.json');
