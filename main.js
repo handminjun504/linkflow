@@ -265,22 +265,56 @@ function setupWindowEvents(win) {
     });
   };
 
+  const exec = (js) => win.webContents.executeJavaScript(js).catch(() => {});
+
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
+    const ctrl = input.control && !input.alt;
+    const ctrlShift = input.control && input.shift && !input.alt;
+
     if (input.key === 'F12') {
       win.webContents.toggleDevTools();
       event.preventDefault();
     } else if (input.key === 'F5') {
       reloadActive();
       event.preventDefault();
-    } else if (input.key === 'r' && input.control && !input.alt && !input.shift) {
+    } else if (input.key === 'F3' || (input.key === 'g' && ctrl && !input.shift)) {
+      exec('window.__findInPage && window.__findInPage()');
+      event.preventDefault();
+    } else if (input.key === 'r' && ctrl && !input.shift) {
       reloadActive();
       event.preventDefault();
-    } else if (input.key === 'I' && input.control && input.shift && !input.alt) {
+    } else if (input.key === 'I' && ctrlShift) {
       win.webContents.toggleDevTools();
       event.preventDefault();
     } else if (input.key === 'l' && input.alt && !input.control && !input.shift) {
-      win.webContents.executeJavaScript('Auth.showLockScreen()').catch(() => {});
+      exec('Auth.showLockScreen()');
+      event.preventDefault();
+    } else if (input.key === 't' && ctrl && !input.shift) {
+      exec('window.__newTab && window.__newTab()');
+      event.preventDefault();
+    } else if (input.key === 'w' && ctrl && !input.shift) {
+      exec('window.__closeActiveTab && window.__closeActiveTab()');
+      event.preventDefault();
+    } else if (input.key === 'T' && ctrlShift) {
+      exec('window.__reopenClosedTab && window.__reopenClosedTab()');
+      event.preventDefault();
+    } else if (input.key === 'Tab' && ctrl && !input.shift) {
+      exec('window.__nextTab && window.__nextTab()');
+      event.preventDefault();
+    } else if (input.key === 'Tab' && ctrlShift) {
+      exec('window.__prevTab && window.__prevTab()');
+      event.preventDefault();
+    } else if (input.key === 'l' && ctrl && !input.shift) {
+      exec('window.__focusUrlBar && window.__focusUrlBar()');
+      event.preventDefault();
+    } else if (input.key === 'f' && ctrl && !input.shift) {
+      exec('window.__findInPage && window.__findInPage()');
+      event.preventDefault();
+    } else if (input.key === 'Escape') {
+      exec('window.__closeFindBar && window.__closeFindBar()');
+    } else if (/^[1-9]$/.test(input.key) && ctrl && !input.shift) {
+      exec(`window.__switchToTabIndex && window.__switchToTabIndex(${parseInt(input.key) - 1})`);
       event.preventDefault();
     }
   });
