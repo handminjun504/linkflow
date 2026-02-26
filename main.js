@@ -411,9 +411,25 @@ function makeCookiesPersistent(ses) {
   });
 }
 
+function stripRestrictiveHeaders(ses) {
+  ses.webRequest.onHeadersReceived((details, callback) => {
+    const headers = { ...details.responseHeaders };
+    const lower = Object.keys(headers).reduce((m, k) => { m[k.toLowerCase()] = k; return m; }, {});
+
+    const remove = ['x-frame-options', 'content-security-policy', 'content-security-policy-report-only'];
+    for (const h of remove) {
+      if (lower[h]) delete headers[lower[h]];
+    }
+    callback({ responseHeaders: headers });
+  });
+}
+
 function setupSessionPersistence() {
   makeCookiesPersistent(session.defaultSession);
   makeCookiesPersistent(session.fromPartition('persist:main'));
+
+  stripRestrictiveHeaders(session.defaultSession);
+  stripRestrictiveHeaders(session.fromPartition('persist:main'));
 
   app.on('before-quit', () => {
     session.defaultSession.cookies.flushStore().catch(() => {});
