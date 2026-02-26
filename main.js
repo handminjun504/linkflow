@@ -449,14 +449,21 @@ app.on('web-contents-created', (_event, contents) => {
     contents.on('before-input-event', (event, input) => {
       if (input.type !== 'keyDown') return;
       if (input.control && !input.alt && !input.shift) {
+        let newLevel = null;
         if (input.key === '=' || input.key === '+') {
-          contents.setZoomLevel(Math.min(5, contents.getZoomLevel() + 0.5));
-          event.preventDefault();
+          newLevel = Math.min(5, contents.getZoomLevel() + 0.5);
         } else if (input.key === '-') {
-          contents.setZoomLevel(Math.max(-5, contents.getZoomLevel() - 0.5));
-          event.preventDefault();
+          newLevel = Math.max(-5, contents.getZoomLevel() - 0.5);
         } else if (input.key === '0') {
-          contents.setZoomLevel(0);
+          newLevel = 0;
+        }
+        if (newLevel !== null) {
+          contents.setZoomLevel(newLevel);
+          const pct = Math.round(contents.getZoomFactor() * 100);
+          const win = BrowserWindow.fromWebContents(contents.hostWebContents) || mainWindow;
+          if (win) win.webContents.executeJavaScript(
+            `(function(){var l=document.getElementById('dtf-zoom-label');if(l)l.textContent='${pct}%';})()`
+          ).catch(() => {});
           event.preventDefault();
         }
       }

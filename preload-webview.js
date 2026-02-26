@@ -41,10 +41,13 @@ document.addEventListener('keydown', (e) => {
 
 // ═══════ Mouse Back/Forward ═══════
 
+document.addEventListener('mousedown', (e) => {
+  if (e.button === 3) { e.preventDefault(); ipcRenderer.sendToHost('nav-back'); }
+  else if (e.button === 4) { e.preventDefault(); ipcRenderer.sendToHost('nav-forward'); }
+}, true);
 document.addEventListener('mouseup', (e) => {
-  if (e.button === 3) { e.preventDefault(); history.back(); }
-  else if (e.button === 4) { e.preventDefault(); history.forward(); }
-});
+  if (e.button === 3 || e.button === 4) e.preventDefault();
+}, true);
 
 // ═══════ Password Detection & Auto-fill ═══════
 
