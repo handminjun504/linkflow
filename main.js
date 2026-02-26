@@ -258,9 +258,7 @@ function createTray() {
 
 // ═══════ Session Cookie Persistence ═══════
 
-function setupSessionPersistence() {
-  const ses = session.defaultSession;
-
+function makeCookiesPersistent(ses) {
   ses.cookies.on('changed', (_event, cookie, _cause, removed) => {
     if (removed || !cookie.session) return;
     const domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
@@ -277,10 +275,15 @@ function setupSessionPersistence() {
       expirationDate: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
     }).catch(() => {});
   });
+}
 
-  // Flush cookies to disk before app quits
+function setupSessionPersistence() {
+  makeCookiesPersistent(session.defaultSession);
+  makeCookiesPersistent(session.fromPartition('persist:main'));
+
   app.on('before-quit', () => {
-    ses.cookies.flushStore().catch(() => {});
+    session.defaultSession.cookies.flushStore().catch(() => {});
+    session.fromPartition('persist:main').cookies.flushStore().catch(() => {});
   });
 }
 

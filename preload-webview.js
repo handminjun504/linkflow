@@ -1,6 +1,43 @@
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, webFrame } = require('electron');
 
 let lastKey = '';
+
+// ═══════ Zoom (Ctrl+Wheel, Ctrl+Plus/Minus/0) ═══════
+
+const ZOOM_STEP = 0.5;
+const ZOOM_MIN = -5;
+const ZOOM_MAX = 5;
+
+function clampZoom(level) {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(level * 10) / 10));
+}
+
+document.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  const current = webFrame.getZoomLevel();
+  const next = clampZoom(current + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+  webFrame.setZoomLevel(next);
+  ipcRenderer.sendToHost('zoom-changed', Math.round(webFrame.getZoomFactor() * 100));
+}, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+  if (!e.ctrlKey || e.altKey) return;
+  const current = webFrame.getZoomLevel();
+  if (e.key === '+' || e.key === '=' || (e.key === ';' && e.shiftKey)) {
+    e.preventDefault();
+    webFrame.setZoomLevel(clampZoom(current + ZOOM_STEP));
+    ipcRenderer.sendToHost('zoom-changed', Math.round(webFrame.getZoomFactor() * 100));
+  } else if (e.key === '-' || e.key === '_') {
+    e.preventDefault();
+    webFrame.setZoomLevel(clampZoom(current - ZOOM_STEP));
+    ipcRenderer.sendToHost('zoom-changed', Math.round(webFrame.getZoomFactor() * 100));
+  } else if (e.key === '0') {
+    e.preventDefault();
+    webFrame.setZoomLevel(0);
+    ipcRenderer.sendToHost('zoom-changed', 100);
+  }
+});
 
 function visiblePwFields() {
   return [...document.querySelectorAll('input[type="password"]')].filter(
