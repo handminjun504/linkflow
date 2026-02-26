@@ -39,6 +39,18 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ═══════ Mouse Back/Forward (XButton1 = Back, XButton2 = Forward) ═══════
+
+document.addEventListener('mouseup', (e) => {
+  if (e.button === 3) {
+    e.preventDefault();
+    history.back();
+  } else if (e.button === 4) {
+    e.preventDefault();
+    history.forward();
+  }
+});
+
 function visiblePwFields() {
   return [...document.querySelectorAll('input[type="password"]')].filter(
     el => el.offsetParent !== null
