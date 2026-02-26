@@ -1,5 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let baseDir = __dirname;
 if (baseDir.includes('app.asar')) {
@@ -7,8 +8,19 @@ if (baseDir.includes('app.asar')) {
 }
 const webviewPreloadPath = `file://${path.join(baseDir, 'preload-webview.js').replace(/\\/g, '/')}`;
 
+let appVersion = '';
+try {
+  const pkgPath = path.join(baseDir.replace('app.asar.unpacked', 'app.asar'), 'package.json');
+  appVersion = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).version || '';
+} catch {
+  try {
+    appVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8')).version || '';
+  } catch {}
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   webviewPreloadPath,
+  getAppVersion: () => appVersion,
   setPasswordUser: (userId) => ipcRenderer.invoke('pw-set-user', userId),
   clearPasswordUser: () => ipcRenderer.invoke('pw-clear-user'),
   savePassword: (data) => ipcRenderer.invoke('pw-save', data),

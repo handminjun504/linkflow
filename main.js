@@ -333,6 +333,21 @@ function createWindow() {
     mainWindow.focus();
   });
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    const versionFile = path.join(userDataPath, 'lastVersion.txt');
+    const currentVersion = app.getVersion();
+    let lastVersion = '';
+    try { lastVersion = fs.readFileSync(versionFile, 'utf-8').trim(); } catch {}
+    if (lastVersion && lastVersion !== currentVersion) {
+      setTimeout(() => {
+        mainWindow.webContents.executeJavaScript(
+          'window.__showUpdateHistory && window.__showUpdateHistory()'
+        ).catch(() => {});
+      }, 2000);
+    }
+    try { fs.writeFileSync(versionFile, currentVersion, 'utf-8'); } catch {}
+  });
+
   setupWindowEvents(mainWindow);
 
   mainWindow.on('close', (e) => {
