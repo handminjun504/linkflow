@@ -7,6 +7,19 @@ const APP_URL = 'https://bookmark-one-lemon.vercel.app';
 let mainWindow = null;
 let tray = null;
 
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 const userDataPath = path.join(app.getPath('appData'), 'unified-access');
 try { fs.mkdirSync(userDataPath, { recursive: true }); } catch {}
 app.setPath('userData', userDataPath);
