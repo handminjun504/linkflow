@@ -248,6 +248,142 @@ ipcMain.handle('ext-open-popup', async (_e, extId) => {
   }
 });
 
+// ═══════ Downloads ═══════
+
+const downloads = new Map();
+let downloadIdCounter = 0;
+
+function setupDownloads() {
+  const ses = session.fromPartition('persist:main');
+  [session.defaultSession, ses].forEach(s => {
+    s.on('will-download', (_event, item) => {
+      const id = ++downloadIdCounter;
+      const filename = item.getFilename();
+      const totalBytes = item.getTotalBytes();
+
+      downloads.set(id, { item, filename, state: 'progressing' });
+      sendToRenderer('download-started', { id, filename, totalBytes });
+
+      item.on('updated', (_e, state) => {
+        if (state === 'progressing') {
+          sendToRenderer('download-progress', {
+            id, received: item.getReceivedBytes(), total: item.getTotalBytes(),
+          });
+        }
+      });
+      item.once('done', (_e, state) => {
+        const dl = downloads.get(id);
+        if (dl) dl.state = state;
+        sendToRenderer('download-done', { id, state, path: item.getSavePath() });
+      });
+    });
+  });
+}
+
+function sendToRenderer(channel, data) {
+  const wins = BrowserWindow.getAllWindows();
+  wins.forEach(w => w.webContents.executeJavaScript(
+    `window.__onDownload&&window.__onDownload(${JSON.stringify(channel)},${JSON.stringify(data)})`
+  ).catch(() => {}));
+}
+
+ipcMain.handle('download-open', (_e, filePath) => {
+  const { shell } = require('electron');
+  shell.openPath(filePath);
+});
+ipcMain.handle('download-show', (_e, filePath) => {
+  const { shell } = require('electron');
+  shell.showItemInFolder(filePath);
+});
+
+// ═══════ Container Tabs ═══════
+
+const containersFile = path.join(userDataPath, 'containers.json');
+
+function loadContainers() {
+  try { return JSON.parse(fs.readFileSync(containersFile, 'utf-8')); }
+  catch { return []; }
+}
+function saveContainers(list) {
+  fs.writeFileSync(containersFile, JSON.stringify(list, null, 2), 'utf-8');
+}
+
+const containerSessionSetup = new Set();
+function ensureContainerSession(containerId) {
+  const partName = `persist:container_${containerId}`;
+  if (!containerSessionSetup.has(partName)) {
+    const ses = session.fromPartition(partName);
+    makeCookiesPersistent(ses);
+    stripRestrictiveHeaders(ses);
+    containerSessionSetup.add(partName);
+  }
+  return partName;
+}
+
+ipcMain.handle('container-list', () => loadContainers());
+ipcMain.handle('container-create', (_e, data) => {
+  const list = loadContainers();
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const item = { id, name: data.name, color: data.color || '#4A90D9', icon: data.icon || '🔵' };
+  list.push(item);
+  saveContainers(list);
+  ensureContainerSession(id);
+  return item;
+});
+ipcMain.handle('container-update', (_e, { id, ...updates }) => {
+  const list = loadContainers();
+  const item = list.find(c => c.id === id);
+  if (item) { Object.assign(item, updates); saveContainers(list); }
+  return item;
+});
+ipcMain.handle('container-delete', (_e, id) => {
+  let list = loadContainers();
+  list = list.filter(c => c.id !== id);
+  saveContainers(list);
+  return true;
+});
+
+// ═══════ Picture-in-Picture ═══════
+
+ipcMain.handle('pip-create', (_e, { url, partition }) => {
+  const pipWin = new BrowserWindow({
+    width: 400, height: 300, minWidth: 200, minHeight: 150,
+    alwaysOnTop: true, frame: true, title: 'PiP', icon: path.join(__dirname, 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: {
+      partition: partition || 'persist:main',
+      contextIsolation: true, nodeIntegration: false,
+    },
+  });
+  pipWin.loadURL(url);
+  return { ok: true };
+});
+
+// ═══════ Screenshot ═══════
+
+ipcMain.handle('capture-page', async (_e, rect) => {
+  const win = BrowserWindow.getFocusedWindow() || mainWindow;
+  if (!win) return null;
+  const img = rect
+    ? await win.webContents.capturePage(rect)
+    : await win.webContents.capturePage();
+  return img.toDataURL();
+});
+
+ipcMain.handle('capture-webview', async () => {
+  const win = BrowserWindow.getFocusedWindow() || mainWindow;
+  if (!win) return null;
+  const result = await win.webContents.executeJavaScript(`
+    (async function() {
+      var wv = document.querySelector('#dynamic-tab-frames webview.active');
+      if (!wv) return null;
+      var img = await wv.capturePage();
+      return img.toDataURL();
+    })()
+  `).catch(() => null);
+  return result;
+});
+
 // ═══════ Window helpers ═══════
 
 function setupWindowEvents(win) {
@@ -273,49 +409,50 @@ function setupWindowEvents(win) {
     const ctrlShift = input.control && input.shift && !input.alt;
 
     if (input.key === 'F12') {
-      win.webContents.toggleDevTools();
-      event.preventDefault();
+      win.webContents.toggleDevTools(); event.preventDefault();
+    } else if (input.key === 'F11') {
+      win.setFullScreen(!win.isFullScreen()); event.preventDefault();
     } else if (input.key === 'F5') {
-      reloadActive();
-      event.preventDefault();
+      reloadActive(); event.preventDefault();
     } else if (input.key === 'F3' || (input.key === 'g' && ctrl && !input.shift)) {
-      exec('window.__findInPage && window.__findInPage()');
-      event.preventDefault();
+      exec('window.__findInPage&&window.__findInPage()'); event.preventDefault();
     } else if (input.key === 'r' && ctrl && !input.shift) {
-      reloadActive();
-      event.preventDefault();
+      reloadActive(); event.preventDefault();
     } else if (input.key === 'I' && ctrlShift) {
-      win.webContents.toggleDevTools();
-      event.preventDefault();
+      win.webContents.toggleDevTools(); event.preventDefault();
     } else if (input.key === 'l' && input.alt && !input.control && !input.shift) {
-      exec('Auth.showLockScreen()');
+      exec('Auth.showLockScreen()'); event.preventDefault();
+    } else if (input.key === 'p' && ctrl && !input.shift) {
+      exec(`(function(){var wv=document.querySelector('#dynamic-tab-frames webview.active');if(wv){wv.print();return}window.print();})()`);
       event.preventDefault();
+    } else if (input.key === 'd' && ctrl && !input.shift) {
+      exec('window.__quickBookmark&&window.__quickBookmark()'); event.preventDefault();
     } else if (input.key === 't' && ctrl && !input.shift) {
-      exec('window.__newTab && window.__newTab()');
-      event.preventDefault();
+      exec('window.__newTab&&window.__newTab()'); event.preventDefault();
     } else if (input.key === 'w' && ctrl && !input.shift) {
-      exec('window.__closeActiveTab && window.__closeActiveTab()');
-      event.preventDefault();
+      exec('window.__closeActiveTab&&window.__closeActiveTab()'); event.preventDefault();
     } else if (input.key === 'T' && ctrlShift) {
-      exec('window.__reopenClosedTab && window.__reopenClosedTab()');
-      event.preventDefault();
+      exec('window.__reopenClosedTab&&window.__reopenClosedTab()'); event.preventDefault();
     } else if (input.key === 'Tab' && ctrl && !input.shift) {
-      exec('window.__nextTab && window.__nextTab()');
-      event.preventDefault();
+      exec('window.__nextTab&&window.__nextTab()'); event.preventDefault();
     } else if (input.key === 'Tab' && ctrlShift) {
-      exec('window.__prevTab && window.__prevTab()');
-      event.preventDefault();
+      exec('window.__prevTab&&window.__prevTab()'); event.preventDefault();
     } else if (input.key === 'l' && ctrl && !input.shift) {
-      exec('window.__focusUrlBar && window.__focusUrlBar()');
-      event.preventDefault();
+      exec('window.__focusUrlBar&&window.__focusUrlBar()'); event.preventDefault();
     } else if (input.key === 'f' && ctrl && !input.shift) {
-      exec('window.__findInPage && window.__findInPage()');
-      event.preventDefault();
+      exec('window.__findInPage&&window.__findInPage()'); event.preventDefault();
+    } else if (input.key === 'k' && ctrl && !input.shift) {
+      exec('window.__commandPalette&&window.__commandPalette()'); event.preventDefault();
+    } else if (input.key === 'A' && ctrlShift) {
+      exec('window.__commandPalette&&window.__commandPalette("tabs")'); event.preventDefault();
+    } else if (input.key === '\\' && ctrl && !input.shift) {
+      exec('window.__toggleSplit&&window.__toggleSplit()'); event.preventDefault();
+    } else if (input.key === 'S' && ctrlShift) {
+      exec('window.__screenshot&&window.__screenshot()'); event.preventDefault();
     } else if (input.key === 'Escape') {
-      exec('window.__closeFindBar && window.__closeFindBar()');
+      exec('window.__closeFindBar&&window.__closeFindBar();window.__closeCommandPalette&&window.__closeCommandPalette()');
     } else if (/^[1-9]$/.test(input.key) && ctrl && !input.shift) {
-      exec(`window.__switchToTabIndex && window.__switchToTabIndex(${parseInt(input.key) - 1})`);
-      event.preventDefault();
+      exec(`window.__switchToTabIndex&&window.__switchToTabIndex(${parseInt(input.key)-1})`); event.preventDefault();
     }
   });
 
@@ -446,24 +583,108 @@ app.on('web-contents-created', (_event, contents) => {
   });
 
   if (contents.getType() === 'webview') {
+    contents.on('context-menu', (_event, params) => {
+      const win = BrowserWindow.fromWebContents(contents.hostWebContents) || mainWindow;
+      const menuItems = [];
+      if (params.linkURL) {
+        menuItems.push({ label: '새 탭에서 링크 열기', click: () => {
+          if (win) win.webContents.executeJavaScript(`window.__electronOpenTab&&window.__electronOpenTab(${JSON.stringify(params.linkURL)})`).catch(()=>{});
+        }});
+        menuItems.push({ label: '링크 주소 복사', click: () => { require('electron').clipboard.writeText(params.linkURL); }});
+        menuItems.push({ type: 'separator' });
+      }
+      if (params.mediaType === 'image' && params.srcURL) {
+        menuItems.push({ label: '이미지 주소 복사', click: () => { require('electron').clipboard.writeText(params.srcURL); }});
+        menuItems.push({ label: '이미지를 새 탭에서 열기', click: () => {
+          if (win) win.webContents.executeJavaScript(`window.__electronOpenTab&&window.__electronOpenTab(${JSON.stringify(params.srcURL)})`).catch(()=>{});
+        }});
+        menuItems.push({ type: 'separator' });
+      }
+      if (params.selectionText) {
+        menuItems.push({ label: '복사', role: 'copy' });
+      }
+      if (params.isEditable) {
+        menuItems.push({ label: '붙여넣기', role: 'paste' });
+        menuItems.push({ label: '잘라내기', role: 'cut' });
+      }
+      menuItems.push({ label: '전체 선택', role: 'selectAll' });
+      if (params.selectionText) {
+        menuItems.push({ type: 'separator' });
+        menuItems.push({ label: `"${params.selectionText.slice(0, 30)}${params.selectionText.length > 30 ? '...' : ''}" Google 검색`, click: () => {
+          const q = encodeURIComponent(params.selectionText);
+          if (win) win.webContents.executeJavaScript(`window.__electronOpenTab&&window.__electronOpenTab('https://www.google.com/search?q=${q}')`).catch(()=>{});
+        }});
+      }
+      menuItems.push({ type: 'separator' });
+      menuItems.push({ label: '뒤로', enabled: contents.canGoBack(), click: () => contents.goBack() });
+      menuItems.push({ label: '앞으로', enabled: contents.canGoForward(), click: () => contents.goForward() });
+      menuItems.push({ label: '새로고침', click: () => contents.reload() });
+      menuItems.push({ type: 'separator' });
+      menuItems.push({ label: '검사 (DevTools)', click: () => contents.inspectElement(params.x, params.y) });
+      Menu.buildFromTemplate(menuItems).popup({ window: win });
+    });
+
     contents.on('before-input-event', (event, input) => {
       if (input.type !== 'keyDown') return;
-      if (input.control && !input.alt && !input.shift) {
+      const win = BrowserWindow.fromWebContents(contents.hostWebContents) || mainWindow;
+      if (!win) return;
+      const exec = (js) => win.webContents.executeJavaScript(js).catch(() => {});
+      const ctrl = input.control && !input.alt;
+      const ctrlShift = input.control && input.shift && !input.alt;
+
+      if (input.key === 'l' && input.alt && !input.control && !input.shift) {
+        exec('Auth.showLockScreen()'); event.preventDefault();
+      } else if (input.key === 'F11') {
+        win.setFullScreen(!win.isFullScreen()); event.preventDefault();
+      } else if (input.key === 'F5') {
+        contents.reload(); event.preventDefault();
+      } else if (input.key === 'r' && ctrl && !input.shift) {
+        contents.reload(); event.preventDefault();
+      } else if (input.key === 'p' && ctrl && !input.shift) {
+        contents.print(); event.preventDefault();
+      } else if (input.key === 'd' && ctrl && !input.shift) {
+        exec('window.__quickBookmark&&window.__quickBookmark()'); event.preventDefault();
+      } else if (input.key === 't' && ctrl && !input.shift) {
+        exec('window.__newTab&&window.__newTab()'); event.preventDefault();
+      } else if (input.key === 'w' && ctrl && !input.shift) {
+        exec('window.__closeActiveTab&&window.__closeActiveTab()'); event.preventDefault();
+      } else if (input.key === 'T' && ctrlShift) {
+        exec('window.__reopenClosedTab&&window.__reopenClosedTab()'); event.preventDefault();
+      } else if (input.key === 'Tab' && ctrl && !input.shift) {
+        exec('window.__nextTab&&window.__nextTab()'); event.preventDefault();
+      } else if (input.key === 'Tab' && ctrlShift) {
+        exec('window.__prevTab&&window.__prevTab()'); event.preventDefault();
+      } else if (input.key === 'l' && ctrl && !input.shift) {
+        exec('window.__focusUrlBar&&window.__focusUrlBar()'); event.preventDefault();
+      } else if (input.key === 'f' && ctrl && !input.shift) {
+        exec('window.__findInPage&&window.__findInPage()'); event.preventDefault();
+      } else if (input.key === 'F3') {
+        exec('window.__findInPage&&window.__findInPage()'); event.preventDefault();
+      } else if (input.key === 'F12') {
+        contents.toggleDevTools(); event.preventDefault();
+      } else if (input.key === 'I' && ctrlShift) {
+        contents.toggleDevTools(); event.preventDefault();
+      } else if (input.key === 'k' && ctrl && !input.shift) {
+        exec('window.__commandPalette&&window.__commandPalette()'); event.preventDefault();
+      } else if (input.key === 'A' && ctrlShift) {
+        exec('window.__commandPalette&&window.__commandPalette("tabs")'); event.preventDefault();
+      } else if (input.key === '\\' && ctrl && !input.shift) {
+        exec('window.__toggleSplit&&window.__toggleSplit()'); event.preventDefault();
+      } else if (input.key === 'S' && ctrlShift) {
+        exec('window.__screenshot&&window.__screenshot()'); event.preventDefault();
+      } else if (/^[1-9]$/.test(input.key) && ctrl && !input.shift) {
+        exec(`window.__switchToTabIndex&&window.__switchToTabIndex(${parseInt(input.key)-1})`); event.preventDefault();
+      } else if (input.key === 'Escape') {
+        exec('window.__closeFindBar&&window.__closeFindBar();window.__closeCommandPalette&&window.__closeCommandPalette()');
+      } else if (ctrl && !input.shift) {
         let newLevel = null;
-        if (input.key === '=' || input.key === '+') {
-          newLevel = Math.min(5, contents.getZoomLevel() + 0.5);
-        } else if (input.key === '-') {
-          newLevel = Math.max(-5, contents.getZoomLevel() - 0.5);
-        } else if (input.key === '0') {
-          newLevel = 0;
-        }
+        if (input.key === '=' || input.key === '+') newLevel = Math.min(5, contents.getZoomLevel() + 0.5);
+        else if (input.key === '-') newLevel = Math.max(-5, contents.getZoomLevel() - 0.5);
+        else if (input.key === '0') newLevel = 0;
         if (newLevel !== null) {
           contents.setZoomLevel(newLevel);
           const pct = Math.round(contents.getZoomFactor() * 100);
-          const win = BrowserWindow.fromWebContents(contents.hostWebContents) || mainWindow;
-          if (win) win.webContents.executeJavaScript(
-            `(function(){var l=document.getElementById('dtf-zoom-label');if(l)l.textContent='${pct}%';})()`
-          ).catch(() => {});
+          exec(`(function(){var l=document.getElementById('dtf-zoom-label');if(l)l.textContent='${pct}%';})()`);
           event.preventDefault();
         }
       }
@@ -586,6 +807,8 @@ function checkForUpdates() {
 
 app.whenReady().then(async () => {
   setupSessionPersistence();
+  setupDownloads();
+  loadContainers().forEach(c => ensureContainerSession(c.id));
   await loadSavedExtensions();
   createWindow();
   createTray();

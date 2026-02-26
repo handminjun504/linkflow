@@ -33,4 +33,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeExtension: (id) => ipcRenderer.invoke('ext-remove', id),
   listExtensions: () => ipcRenderer.invoke('ext-list'),
   openExtensionPopup: (id) => ipcRenderer.invoke('ext-open-popup', id),
+  downloadOpen: (p) => ipcRenderer.invoke('download-open', p),
+  downloadShow: (p) => ipcRenderer.invoke('download-show', p),
+  containerList: () => ipcRenderer.invoke('container-list'),
+  containerCreate: (d) => ipcRenderer.invoke('container-create', d),
+  containerUpdate: (d) => ipcRenderer.invoke('container-update', d),
+  containerDelete: (id) => ipcRenderer.invoke('container-delete', id),
+  pipCreate: (d) => ipcRenderer.invoke('pip-create', d),
+  capturePage: (r) => ipcRenderer.invoke('capture-page', r),
+  captureWebview: () => ipcRenderer.invoke('capture-webview'),
 });

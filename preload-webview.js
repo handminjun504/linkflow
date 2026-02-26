@@ -49,6 +49,72 @@ document.addEventListener('mouseup', (e) => {
   if (e.button === 3 || e.button === 4) e.preventDefault();
 }, true);
 
+// ═══════ Mouse Gestures (Right-click drag) ═══════
+
+let gestureActive = false;
+let gestureStartX = 0, gestureStartY = 0;
+let gestureOverlay = null;
+
+document.addEventListener('mousedown', (e) => {
+  if (e.button === 2) {
+    gestureActive = true;
+    gestureStartX = e.screenX;
+    gestureStartY = e.screenY;
+  }
+}, true);
+
+document.addEventListener('mousemove', (e) => {
+  if (!gestureActive) return;
+  const dx = e.screenX - gestureStartX;
+  const dy = e.screenY - gestureStartY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > 30 && !gestureOverlay) {
+    gestureOverlay = document.createElement('div');
+    Object.assign(gestureOverlay.style, {
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+      background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '12px 24px',
+      borderRadius: '8px', fontSize: '24px', zIndex: '2147483647', pointerEvents: 'none',
+    });
+    document.body.appendChild(gestureOverlay);
+  }
+  if (gestureOverlay && dist > 30) {
+    const absDx = Math.abs(dx), absDy = Math.abs(dy);
+    let dir = '';
+    if (absDx > absDy) dir = dx > 0 ? '→ 앞으로' : '← 뒤로';
+    else dir = dy > 0 ? '↓ 새 탭' : '↑ 탭 닫기';
+    gestureOverlay.textContent = dir;
+  }
+}, true);
+
+document.addEventListener('mouseup', (e) => {
+  if (e.button !== 2 || !gestureActive) { gestureActive = false; return; }
+  gestureActive = false;
+  const dx = e.screenX - gestureStartX;
+  const dy = e.screenY - gestureStartY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (gestureOverlay) {
+    gestureOverlay.remove();
+    gestureOverlay = null;
+  }
+
+  if (dist > 50) {
+    e.preventDefault();
+    e.stopPropagation();
+    const absDx = Math.abs(dx), absDy = Math.abs(dy);
+    let gesture;
+    if (absDx > absDy) gesture = dx > 0 ? 'right' : 'left';
+    else gesture = dy > 0 ? 'down' : 'up';
+    ipcRenderer.sendToHost('gesture', gesture);
+  }
+}, true);
+
+document.addEventListener('contextmenu', (e) => {
+  const dx = Math.abs(e.screenX - gestureStartX);
+  const dy = Math.abs(e.screenY - gestureStartY);
+  if (Math.sqrt(dx*dx + dy*dy) > 50) e.preventDefault();
+}, true);
+
 // ═══════ Password Detection & Auto-fill ═══════
 
 function getAllPwFields() {
