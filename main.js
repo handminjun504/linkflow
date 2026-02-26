@@ -193,7 +193,7 @@ function createWindow() {
 
 // ═══════ Detached Window ═══════
 
-function createDetachedWindow(url) {
+function createDetachedWindow(url, authData) {
   const win = new BrowserWindow({
     width: 1100,
     height: 800,
@@ -212,8 +212,9 @@ function createDetachedWindow(url) {
   });
 
   Menu.setApplicationMenu(null);
-  const openUrl = `${APP_URL}#__open_tab=${encodeURIComponent(url)}`;
-  win.loadURL(openUrl);
+  let hash = `__open_tab=${encodeURIComponent(url)}`;
+  if (authData) hash += `&__auth=${authData}`;
+  win.loadURL(`${APP_URL}#${hash}`);
   setupWindowEvents(win);
 }
 
@@ -224,7 +225,11 @@ app.on('web-contents-created', (_event, contents) => {
     if (!url || url === 'about:blank') return { action: 'deny' };
 
     if (url.includes('#__detach')) {
-      createDetachedWindow(url.replace('#__detach', ''));
+      const hashPart = url.split('#')[1] || '';
+      const authMatch = hashPart.match(/__auth=(.+)$/);
+      const authData = authMatch ? authMatch[1] : '';
+      const cleanUrl = url.replace(/#__detach.*$/, '');
+      createDetachedWindow(cleanUrl, authData);
       return { action: 'deny' };
     }
 

@@ -39,29 +39,41 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ═══════ Mouse Back/Forward (XButton1 = Back, XButton2 = Forward) ═══════
+// ═══════ Mouse Back/Forward ═══════
 
 document.addEventListener('mouseup', (e) => {
-  if (e.button === 3) {
-    e.preventDefault();
-    history.back();
-  } else if (e.button === 4) {
-    e.preventDefault();
-    history.forward();
-  }
+  if (e.button === 3) { e.preventDefault(); history.back(); }
+  else if (e.button === 4) { e.preventDefault(); history.forward(); }
 });
 
-function visiblePwFields() {
-  return [...document.querySelectorAll('input[type="password"]')].filter(
-    el => el.offsetParent !== null
-  );
+// ═══════ Password Detection & Auto-fill ═══════
+
+function getAllPwFields() {
+  return [...document.querySelectorAll('input[type="password"]')];
+}
+
+function getVisiblePwFields() {
+  return getAllPwFields().filter(el => {
+    if (el.offsetParent !== null) return true;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
 }
 
 function findUsername(pwField) {
-  const scope = pwField.closest('form') || pwField.closest('div')?.parentElement || document;
+  const scopes = [
+    pwField.closest('form'),
+    pwField.closest('[role="dialog"]'),
+    pwField.closest('.login, .sign-in, .signin, .auth, [class*="login"], [class*="auth"]'),
+    pwField.parentElement?.parentElement?.parentElement,
+    document,
+  ].filter(Boolean);
+
   const selectors = [
     'input[autocomplete="username"]',
+    'input[autocomplete="email"]',
     'input[type="email"]',
+    'input[type="tel"]',
     'input[type="text"][name*="user" i]',
     'input[type="text"][name*="login" i]',
     'input[type="text"][name*="id" i]',
@@ -71,37 +83,49 @@ function findUsername(pwField) {
     'input[type="text"][id*="login" i]',
     'input[type="text"][id*="id" i]',
     'input[type="text"][id*="mail" i]',
+    'input[type="text"][id*="email" i]',
     'input[type="text"]',
     'input:not([type])',
   ];
-  for (const s of selectors) {
-    for (const el of scope.querySelectorAll(s)) {
-      if (el.offsetParent !== null && el !== pwField && el.type !== 'hidden') return el;
+
+  for (const scope of scopes) {
+    for (const s of selectors) {
+      for (const el of scope.querySelectorAll(s)) {
+        if (el !== pwField && el.type !== 'hidden' && el.value) return el;
+      }
     }
   }
   return null;
 }
 
 function setVal(el, val) {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-  setter.call(el, val);
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (setter) setter.call(el, val);
+  else el.value = val;
   el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 ipcRenderer.on('pw-fill', (_e, creds) => {
   if (!creds?.length) return;
-  const pws = visiblePwFields();
-  if (!pws.length) return;
-  const c = creds[0];
-  const user = findUsername(pws[0]);
-  if (user && c.username) setVal(user, c.username);
-  if (c.password) setVal(pws[0], c.password);
+  const tryFill = () => {
+    const pws = getVisiblePwFields();
+    if (!pws.length) return false;
+    const c = creds[0];
+    const userField = findUsername(pws[0]);
+    if (userField && c.username) setVal(userField, c.username);
+    if (c.password) setVal(pws[0], c.password);
+    return true;
+  };
+  if (!tryFill()) {
+    setTimeout(tryFill, 500);
+    setTimeout(tryFill, 1500);
+  }
 });
 
 function capture(pwField) {
   const pw = pwField.value;
-  if (!pw) return;
+  if (!pw || pw.length < 1) return;
   const userEl = findUsername(pwField);
   const username = userEl ? userEl.value : '';
   const key = `${location.hostname}|${username}|${pw}`;
@@ -115,42 +139,61 @@ function capture(pwField) {
   });
 }
 
+function captureAll() {
+  const pws = getAllPwFields().filter(el => el.value);
+  pws.forEach(pw => capture(pw));
+}
+
 function hookForms() {
-  const pws = visiblePwFields();
-  pws.forEach(pw => {
+  getAllPwFields().forEach(pw => {
+    if (pw.__pwHooked) return;
+    pw.__pwHooked = true;
+
     const form = pw.closest('form');
-    if (form && !form.__pwHooked) {
-      form.__pwHooked = true;
+    if (form && !form.__pwFormHooked) {
+      form.__pwFormHooked = true;
       form.addEventListener('submit', () => capture(pw), true);
     }
+
+    pw.addEventListener('change', () => {
+      if (pw.value) setTimeout(() => capture(pw), 200);
+    });
   });
 }
 
 document.addEventListener('click', (e) => {
-  const btn = e.target.closest('button, input[type="submit"], [role="button"], [type="button"]');
+  const btn = e.target.closest(
+    'button, input[type="submit"], [role="button"], [type="button"], a[href], ' +
+    '[class*="submit" i], [class*="login" i], [class*="sign" i], [id*="submit" i], [id*="login" i]'
+  );
   if (!btn) return;
-  const scope = btn.closest('form') || document;
-  const pw = scope.querySelector('input[type="password"]');
-  if (pw?.value) setTimeout(() => capture(pw), 300);
+  setTimeout(captureAll, 300);
+  setTimeout(captureAll, 800);
 }, true);
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
-  const el = document.activeElement;
-  if (!el) return;
-  const scope = el.closest('form') || document;
-  const pw = scope.querySelector('input[type="password"]');
-  if (pw?.value) setTimeout(() => capture(pw), 300);
+  setTimeout(captureAll, 300);
+  setTimeout(captureAll, 800);
 }, true);
 
+window.addEventListener('beforeunload', () => {
+  captureAll();
+});
+
+function scanAndNotify() {
+  hookForms();
+  const pws = getVisiblePwFields();
+  if (pws.length) {
+    ipcRenderer.sendToHost('pw-detected', { domain: location.hostname });
+  }
+}
+
 function init() {
-  setTimeout(() => {
-    hookForms();
-    const pws = visiblePwFields();
-    if (pws.length) {
-      ipcRenderer.sendToHost('pw-detected', { domain: location.hostname });
-    }
-  }, 800);
+  ipcRenderer.sendToHost('preload-ready', { domain: location.hostname });
+  setTimeout(scanAndNotify, 500);
+  setTimeout(scanAndNotify, 1500);
+  setTimeout(scanAndNotify, 3000);
 }
 
 if (document.readyState === 'loading') {
@@ -159,4 +202,10 @@ if (document.readyState === 'loading') {
   init();
 }
 
-new MutationObserver(hookForms).observe(document.documentElement, { childList: true, subtree: true });
+new MutationObserver(() => {
+  hookForms();
+  const pws = getVisiblePwFields();
+  if (pws.length) {
+    ipcRenderer.sendToHost('pw-detected', { domain: location.hostname });
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
