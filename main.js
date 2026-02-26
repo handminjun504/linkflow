@@ -111,6 +111,135 @@ ipcMain.handle('pw-clear', () => {
   return true;
 });
 
+// ═══════ Chrome Extensions ═══════
+
+const extensionsFile = path.join(userDataPath, 'extensions.json');
+
+function loadExtensionPaths() {
+  try { return JSON.parse(fs.readFileSync(extensionsFile, 'utf-8')); }
+  catch { return []; }
+}
+
+function saveExtensionPaths(paths) {
+  fs.writeFileSync(extensionsFile, JSON.stringify(paths, null, 2), 'utf-8');
+}
+
+async function loadSavedExtensions() {
+  const ses = session.fromPartition('persist:main');
+  const paths = loadExtensionPaths();
+  const valid = [];
+  for (const extPath of paths) {
+    try {
+      if (fs.existsSync(extPath)) {
+        await ses.loadExtension(extPath, { allowFileAccess: true });
+        valid.push(extPath);
+      }
+    } catch (err) {
+      console.log('Extension load failed:', extPath, err.message);
+    }
+  }
+  if (valid.length !== paths.length) saveExtensionPaths(valid);
+}
+
+function getExtensionInfo(ext) {
+  return {
+    id: ext.id,
+    name: ext.name,
+    version: ext.manifest?.version || '',
+    description: ext.manifest?.description || '',
+    path: ext.path,
+    icon: ext.manifest?.icons
+      ? `file://${path.join(ext.path, ext.manifest.icons[Object.keys(ext.manifest.icons).pop()]).replace(/\\/g, '/')}`
+      : '',
+  };
+}
+
+ipcMain.handle('ext-load', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '확장 프로그램 폴더 선택',
+    properties: ['openDirectory'],
+    message: '압축 해제된 Chrome 확장 프로그램 폴더를 선택하세요',
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false };
+
+  const extPath = result.filePaths[0];
+  const manifestPath = path.join(extPath, 'manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    return { ok: false, error: 'manifest.json이 없습니다. Chrome 확장 프로그램 폴더를 선택하세요.' };
+  }
+
+  try {
+    const ses = session.fromPartition('persist:main');
+    const ext = await ses.loadExtension(extPath, { allowFileAccess: true });
+    const paths = loadExtensionPaths();
+    if (!paths.includes(extPath)) {
+      paths.push(extPath);
+      saveExtensionPaths(paths);
+    }
+    return { ok: true, extension: getExtensionInfo(ext) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('ext-remove', async (_e, extId) => {
+  try {
+    const ses = session.fromPartition('persist:main');
+    const exts = ses.getAllExtensions();
+    const ext = exts.find(e => e.id === extId);
+    if (ext) {
+      await ses.removeExtension(extId);
+      const paths = loadExtensionPaths().filter(p => p !== ext.path);
+      saveExtensionPaths(paths);
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('ext-list', () => {
+  try {
+    const ses = session.fromPartition('persist:main');
+    const exts = ses.getAllExtensions();
+    return exts.map(getExtensionInfo);
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle('ext-open-popup', async (_e, extId) => {
+  try {
+    const ses = session.fromPartition('persist:main');
+    const exts = ses.getAllExtensions();
+    const ext = exts.find(e => e.id === extId);
+    if (!ext || !ext.manifest?.action?.default_popup) return { ok: false };
+
+    const popupPath = path.join(ext.path, ext.manifest.action.default_popup);
+    const popupUrl = `file://${popupPath.replace(/\\/g, '/')}`;
+
+    const popup = new BrowserWindow({
+      width: 400,
+      height: 500,
+      frame: true,
+      resizable: true,
+      title: ext.name,
+      icon: path.join(__dirname, 'icon.png'),
+      parent: mainWindow,
+      webPreferences: {
+        partition: 'persist:main',
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    popup.setMenuBarVisibility(false);
+    popup.loadURL(popupUrl);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // ═══════ Window helpers ═══════
 
 function setupWindowEvents(win) {
@@ -340,8 +469,9 @@ function checkForUpdates() {
 
 // ═══════ App Lifecycle ═══════
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   setupSessionPersistence();
+  await loadSavedExtensions();
   createWindow();
   createTray();
   setTimeout(checkForUpdates, 5000);
