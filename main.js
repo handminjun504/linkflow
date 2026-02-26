@@ -271,11 +271,28 @@ function setupWindowEvents(win) {
     } else if (input.key === 'I' && input.control && input.shift && !input.alt) {
       win.webContents.toggleDevTools();
       event.preventDefault();
+    } else if (input.key === 'l' && input.alt && !input.control && !input.shift) {
+      win.webContents.executeJavaScript('Auth.showLockScreen()').catch(() => {});
+      event.preventDefault();
     }
   });
 
   win.webContents.on('page-title-updated', (_e, title) => {
     win.setTitle(title || 'LinkFlow');
+  });
+
+  win.on('app-command', (_e, cmd) => {
+    if (cmd === 'browser-backward') {
+      win.webContents.executeJavaScript(`
+        (function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
+        if(wv&&wv.canGoBack()){wv.goBack();return true;} return false; })()
+      `).then(ok => { if (!ok) win.webContents.navigationHistory.goBack(); }).catch(() => {});
+    } else if (cmd === 'browser-forward') {
+      win.webContents.executeJavaScript(`
+        (function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
+        if(wv&&wv.canGoForward()){wv.goForward();return true;} return false; })()
+      `).then(ok => { if (!ok) win.webContents.navigationHistory.goForward(); }).catch(() => {});
+    }
   });
 }
 
@@ -370,6 +387,24 @@ app.on('web-contents-created', (_event, contents) => {
     }
     return { action: 'deny' };
   });
+
+  if (contents.getType() === 'webview') {
+    contents.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') return;
+      if (input.control && !input.alt && !input.shift) {
+        if (input.key === '=' || input.key === '+') {
+          contents.setZoomLevel(Math.min(5, contents.getZoomLevel() + 0.5));
+          event.preventDefault();
+        } else if (input.key === '-') {
+          contents.setZoomLevel(Math.max(-5, contents.getZoomLevel() - 0.5));
+          event.preventDefault();
+        } else if (input.key === '0') {
+          contents.setZoomLevel(0);
+          event.preventDefault();
+        }
+      }
+    });
+  }
 });
 
 // ═══════ System Tray ═══════
