@@ -1,6 +1,6 @@
 {
   "name": "linkflow",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "LinkFlow - 업무 서비스 통합 관리 데스크톱 앱",
   "main": "main.js",
   "scripts": {

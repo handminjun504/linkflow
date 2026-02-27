@@ -573,10 +573,8 @@ function createDetachedWindow(url, authData) {
 // ═══════ Intercept window.open ═══════
 
 app.on('web-contents-created', (_event, contents) => {
-  contents.setWindowOpenHandler(({ url }) => {
-    if (!url || url === 'about:blank') return { action: 'deny' };
-
-    if (url.includes('#__detach')) {
+  contents.setWindowOpenHandler(({ url, disposition }) => {
+    if (url && url.includes('#__detach')) {
       const hashPart = url.split('#')[1] || '';
       const authMatch = hashPart.match(/__auth=(.+)$/);
       const authData = authMatch ? authMatch[1] : '';
@@ -585,11 +583,32 @@ app.on('web-contents-created', (_event, contents) => {
       return { action: 'deny' };
     }
 
+    const isWebview = contents.getType() === 'webview';
+
+    if (isWebview) {
+      if (!url || url === 'about:blank' || disposition === 'new-window') {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: { autoHideMenuBar: true },
+        };
+      }
+      const hostContents = contents.hostWebContents;
+      const win = hostContents ? BrowserWindow.fromWebContents(hostContents) : null;
+      const targetWin = win || mainWindow;
+      if (targetWin) {
+        targetWin.webContents.executeJavaScript(
+          `window.__electronOpenTab && window.__electronOpenTab(${JSON.stringify(url)})`
+        ).catch(() => {});
+      }
+      return { action: 'deny' };
+    }
+
+    if (!url || url === 'about:blank') return { action: 'deny' };
     const targetWin = BrowserWindow.fromWebContents(contents) || mainWindow;
     if (targetWin) {
       targetWin.webContents.executeJavaScript(
         `window.__electronOpenTab && window.__electronOpenTab(${JSON.stringify(url)})`
-      );
+      ).catch(() => {});
     }
     return { action: 'deny' };
   });
