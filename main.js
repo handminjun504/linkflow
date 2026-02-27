@@ -7,6 +7,26 @@ const APP_URL = 'https://bookmark-one-lemon.vercel.app';
 let mainWindow = null;
 let tray = null;
 
+// ═══════ Global Crash Protection ═══════
+
+process.on('uncaughtException', (err) => {
+  console.error('[LinkFlow] Uncaught Exception:', err);
+  try {
+    const logPath = path.join(app.getPath('appData'), 'unified-access', 'crash.log');
+    const entry = `[${new Date().toISOString()}] UncaughtException: ${err.stack || err.message}\n`;
+    fs.appendFileSync(logPath, entry, 'utf-8');
+  } catch {}
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[LinkFlow] Unhandled Rejection:', reason);
+  try {
+    const logPath = path.join(app.getPath('appData'), 'unified-access', 'crash.log');
+    const entry = `[${new Date().toISOString()}] UnhandledRejection: ${reason}\n`;
+    fs.appendFileSync(logPath, entry, 'utf-8');
+  } catch {}
+});
+
 const userDataPath = path.join(app.getPath('appData'), 'unified-access');
 try { fs.mkdirSync(userDataPath, { recursive: true }); } catch {}
 app.setPath('userData', userDataPath);
@@ -543,6 +563,43 @@ function createWindow() {
 
   setupWindowEvents(mainWindow);
 
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[LinkFlow] Renderer crashed:', details.reason, details.exitCode);
+    try {
+      const logPath = path.join(userDataPath, 'crash.log');
+      const entry = `[${new Date().toISOString()}] RendererCrash: ${details.reason} (exit: ${details.exitCode})\n`;
+      fs.appendFileSync(logPath, entry, 'utf-8');
+    } catch {}
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'LinkFlow 오류',
+        message: '페이지에 문제가 발생했습니다. 다시 로드합니다.',
+        buttons: ['확인'],
+      }).then(() => {
+        mainWindow.loadURL(APP_URL);
+      }).catch(() => {
+        mainWindow.loadURL(APP_URL);
+      });
+    }
+  });
+
+  mainWindow.webContents.on('unresponsive', () => {
+    console.warn('[LinkFlow] Window unresponsive');
+    dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'LinkFlow',
+      message: '응답하지 않는 페이지가 있습니다. 기다리시겠습니까?',
+      buttons: ['기다리기', '새로고침'],
+      defaultId: 0,
+    }).then(({ response }) => {
+      if (response === 1 && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.reload();
+      }
+    }).catch(() => {});
+  });
+
   mainWindow.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
@@ -760,21 +817,39 @@ function createTray() {
 // ═══════ Session Cookie Persistence ═══════
 
 function makeCookiesPersistent(ses) {
+  let cookieQueue = [];
+  let processingCookies = false;
+
+  async function processCookieQueue() {
+    if (processingCookies) return;
+    processingCookies = true;
+    while (cookieQueue.length > 0) {
+      const batch = cookieQueue.splice(0, 20);
+      for (const cookie of batch) {
+        try {
+          const domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
+          const url = `http${cookie.secure ? 's' : ''}://${domain}${cookie.path}`;
+          await ses.cookies.set({
+            url,
+            name: cookie.name,
+            value: cookie.value,
+            domain: cookie.domain,
+            path: cookie.path,
+            secure: cookie.secure,
+            httpOnly: cookie.httpOnly,
+            sameSite: cookie.sameSite || 'unspecified',
+            expirationDate: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+          });
+        } catch {}
+      }
+    }
+    processingCookies = false;
+  }
+
   ses.cookies.on('changed', (_event, cookie, _cause, removed) => {
     if (removed || !cookie.session) return;
-    const domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
-    const url = `http${cookie.secure ? 's' : ''}://${domain}${cookie.path}`;
-    ses.cookies.set({
-      url,
-      name: cookie.name,
-      value: cookie.value,
-      domain: cookie.domain,
-      path: cookie.path,
-      secure: cookie.secure,
-      httpOnly: cookie.httpOnly,
-      sameSite: cookie.sameSite || 'unspecified',
-      expirationDate: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-    }).catch(() => {});
+    cookieQueue.push(cookie);
+    processCookieQueue();
   });
 }
 
