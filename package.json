@@ -1,6 +1,6 @@
 {
   "name": "linkflow",
-  "version": "2.0.4",
+  "version": "2.1.0",
   "description": "LinkFlow - 업무 서비스 통합 관리 데스크톱 앱",
   "main": "main.js",
   "scripts": {
@@ -16,7 +16,8 @@
   },
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-builder": "^25.0.0"
+    "electron-builder": "^25.0.0",
+    "playwright": "^1.58.2"
   },
   "build": {
     "appId": "com.linkflow.app",
@@ -30,7 +31,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "icon.ico"
@@ -44,7 +47,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "LinkFlow",
-      "installerLanguages": ["ko"],
+      "installerLanguages": [
+        "ko"
+      ],
       "language": "1042"
     },
     "files": [

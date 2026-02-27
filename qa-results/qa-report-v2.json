@@ -1,0 +1,882 @@
+{
+  "timestamp": "2026-02-27T03:26:52.764Z",
+  "version": "v2",
+  "summary": {
+    "total": 116,
+    "pass": 116,
+    "fail": 0,
+    "warn": 0,
+    "passRate": "100.0%"
+  },
+  "groups": {
+    "QA-1": {
+      "pass": 4,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-2": {
+      "pass": 2,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-3": {
+      "pass": 17,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-4": {
+      "pass": 23,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-5": {
+      "pass": 11,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-6": {
+      "pass": 5,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-7": {
+      "pass": 16,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-8": {
+      "pass": 7,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-9": {
+      "pass": 7,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-10": {
+      "pass": 19,
+      "fail": 0,
+      "warn": 0
+    },
+    "QA-11": {
+      "pass": 5,
+      "fail": 0,
+      "warn": 0
+    }
+  },
+  "results": [
+    {
+      "group": "QA-1",
+      "name": "윈도우 열림",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:37.223Z"
+    },
+    {
+      "group": "QA-1",
+      "name": "타이틀 LinkFlow",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:37.226Z"
+    },
+    {
+      "group": "QA-1",
+      "name": "body 로드",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:37.234Z"
+    },
+    {
+      "group": "QA-1",
+      "name": "#toast-container 존재",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:37.240Z"
+    },
+    {
+      "group": "QA-2",
+      "name": "자동 로그인",
+      "status": "PASS",
+      "detail": "사용자: 손민준(올라프)",
+      "time": "2026-02-27T03:25:37.378Z"
+    },
+    {
+      "group": "QA-2",
+      "name": "사용자 배지",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:37.387Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 탭 활성",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:38.533Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "검색 입력 존재",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:38.538Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "카테고리 탭 수",
+      "status": "PASS",
+      "detail": "2개",
+      "time": "2026-02-27T03:25:38.545Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "카테고리 탭 존재",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:38.545Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "추가 모달 열기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:38.603Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "모달 필드 확인",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:38.628Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "bm-type 옵션 목록",
+      "status": "PASS",
+      "detail": "web,google_sheet,server,apps_script,api,dev_project,other",
+      "time": "2026-02-27T03:25:38.630Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "#bm-type 옵션",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:38.630Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "#bm-open-mode 옵션",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:38.633Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 생성",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:44.070Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 DOM 확인",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:44.177Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 검색",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:45.013Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 고정(Pin)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:46.025Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 수정 모달",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:46.543Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 수정 저장",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:51.638Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "카테고리 탭 클릭",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:52.310Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 삭제",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:54.851Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "캘린더 그리드",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:57.324Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "현재 월",
+      "status": "PASS",
+      "detail": "2026년 2월",
+      "time": "2026-02-27T03:25:57.326Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "월 제목 표시",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:57.326Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "이전 달",
+      "status": "PASS",
+      "detail": "2026년 2월 -> 2026년 1월",
+      "time": "2026-02-27T03:25:58.867Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "이전 달 이동",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:25:58.867Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "다음 달 이동",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:00.400Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "오늘 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:01.930Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "공휴일",
+      "status": "PASS",
+      "detail": "설날 전날, 설날, 설날 다음날",
+      "time": "2026-02-27T03:26:01.932Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "공휴일 표시",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:01.932Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "업무 항목",
+      "status": "PASS",
+      "detail": "1개",
+      "time": "2026-02-27T03:26:01.941Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "이번 주 업무 사이드바",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:01.941Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "일정 추가 (날짜 클릭)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:03.110Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "일정 모달 필드",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:03.135Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "선택된 색상",
+      "status": "PASS",
+      "detail": "#27AE60",
+      "time": "2026-02-27T03:26:03.381Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "색상 선택",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:03.381Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "일정 생성",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:05.430Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "반복 일정 모달",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:06.592Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "반복일 입력 표시",
+      "status": "PASS",
+      "detail": "표시됨",
+      "time": "2026-02-27T03:26:07.106Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "반복 유형 monthly",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:07.107Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "건너뛰기 표시",
+      "status": "PASS",
+      "detail": "보임",
+      "time": "2026-02-27T03:26:07.114Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "주말 건너뛰기 체크박스",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:07.114Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "일정 수정",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:10.489Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "일정 삭제",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:13.591Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 탭 활성",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:15.017Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 추가 모달",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:15.558Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 모달 필드",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:15.568Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 색상",
+      "status": "PASS",
+      "detail": "#FFF9C4",
+      "time": "2026-02-27T03:26:15.816Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 색상 선택",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:15.816Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 생성",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:17.882Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 수",
+      "status": "PASS",
+      "detail": "1개",
+      "time": "2026-02-27T03:26:17.975Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 카드 존재",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:17.975Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 수정 모달",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:18.492Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 수정 저장",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:20.556Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "메모 삭제",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:23.139Z"
+    },
+    {
+      "group": "QA-6",
+      "name": "새 탭 (JS)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:26.116Z"
+    },
+    {
+      "group": "QA-6",
+      "name": "탭 닫기 (JS)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:27.289Z"
+    },
+    {
+      "group": "QA-6",
+      "name": "탭 복원 (JS)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:29.327Z"
+    },
+    {
+      "group": "QA-6",
+      "name": "탭 전환 (__nextTab)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:31.864Z"
+    },
+    {
+      "group": "QA-6",
+      "name": "F11 전체화면",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:33.412Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "새 탭 버튼 (#btn-add-tab)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:36.286Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "draggable",
+      "status": "PASS",
+      "detail": "draggable=\"true\"",
+      "time": "2026-02-27T03:26:36.288Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "탭 draggable 속성",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:36.288Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "툴바 뒤로 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:36.292Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "툴바 앞으로 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:36.296Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "새로고침 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:36.300Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "외부 열기 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:36.304Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "URL 바 존재",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:36.308Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "URL 바 네비게이션",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:39.353Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "줌 인 후",
+      "status": "PASS",
+      "detail": "110%",
+      "time": "2026-02-27T03:26:39.801Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "줌 인 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:39.802Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "줌 아웃 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:40.139Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "줌 리셋 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:40.478Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "분할 보기 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:40.482Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "URL 메모 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:40.485Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "탭 닫기 버튼 (.dyn-tab-close)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:41.519Z"
+    },
+    {
+      "group": "QA-8",
+      "name": "명령 팔레트 열기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:42.145Z"
+    },
+    {
+      "group": "QA-8",
+      "name": "검색 결과",
+      "status": "PASS",
+      "detail": "0개",
+      "time": "2026-02-27T03:26:42.774Z"
+    },
+    {
+      "group": "QA-8",
+      "name": "명령 팔레트 입력",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:42.774Z"
+    },
+    {
+      "group": "QA-8",
+      "name": "명령 팔레트 닫기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:43.078Z"
+    },
+    {
+      "group": "QA-8",
+      "name": "페이지 내 검색 열기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:45.625Z"
+    },
+    {
+      "group": "QA-8",
+      "name": "검색 바 필드",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:45.742Z"
+    },
+    {
+      "group": "QA-8",
+      "name": "검색 바 닫기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:46.051Z"
+    },
+    {
+      "group": "QA-9",
+      "name": "사용자 드롭다운 열기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:47.010Z"
+    },
+    {
+      "group": "QA-9",
+      "name": "로그아웃 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:47.113Z"
+    },
+    {
+      "group": "QA-9",
+      "name": "비밀번호 변경 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:47.116Z"
+    },
+    {
+      "group": "QA-9",
+      "name": "비밀번호 변경 모달",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:47.666Z"
+    },
+    {
+      "group": "QA-9",
+      "name": "PIN 잠금",
+      "status": "PASS",
+      "detail": "PIN 있음, 잠금 화면 표시",
+      "time": "2026-02-27T03:26:48.485Z"
+    },
+    {
+      "group": "QA-9",
+      "name": "잠금 화면 활성화",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:48.486Z"
+    },
+    {
+      "group": "QA-9",
+      "name": "잠금 화면 UI",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:48.808Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "설정 열기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:49.965Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "표시 이름",
+      "status": "PASS",
+      "detail": "\"손민준(올라프)\"",
+      "time": "2026-02-27T03:26:50.108Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "프로필 이름",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:50.108Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "자동 잠금 토글",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:50.113Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "잠금 시간",
+      "status": "PASS",
+      "detail": "900분",
+      "time": "2026-02-27T03:26:50.121Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "잠금 시간 설정",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:50.121Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "PIN 입력 필드",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:50.126Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "카테고리 수",
+      "status": "PASS",
+      "detail": "0개",
+      "time": "2026-02-27T03:26:50.133Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "카테고리 관리 목록",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:50.133Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "카테고리 추가 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:50.138Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "버전 텍스트",
+      "status": "PASS",
+      "detail": "LinkFlow (웹 버전)",
+      "time": "2026-02-27T03:26:50.145Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "앱 버전 표시",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:50.145Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "버전 수",
+      "status": "PASS",
+      "detail": "18개",
+      "time": "2026-02-27T03:26:51.678Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "업데이트 이력 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:51.678Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "설정 닫기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:52.613Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "버전",
+      "status": "PASS",
+      "detail": "v2.0.4",
+      "time": "2026-02-27T03:26:52.615Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "앱 버전 (메인)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:52.615Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "경로",
+      "status": "PASS",
+      "detail": "C:\\Users\\root\\AppData\\Roaming\\unified-access",
+      "time": "2026-02-27T03:26:52.616Z"
+    },
+    {
+      "group": "QA-10",
+      "name": "userData 경로",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:52.616Z"
+    },
+    {
+      "group": "QA-11",
+      "name": "#confirm-dialog 구조",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:52.634Z"
+    },
+    {
+      "group": "QA-11",
+      "name": "download-bar",
+      "status": "PASS",
+      "detail": "동적 생성 요소 - 다운로드 시 생성됨",
+      "time": "2026-02-27T03:26:52.636Z"
+    },
+    {
+      "group": "QA-11",
+      "name": "#download-bar (동적)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:52.636Z"
+    },
+    {
+      "group": "QA-11",
+      "name": "메인 탭 바",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:52.650Z"
+    },
+    {
+      "group": "QA-11",
+      "name": "설정/사용자 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T03:26:52.656Z"
+    }
+  ]
+}

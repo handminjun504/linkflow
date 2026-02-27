@@ -1,0 +1,305 @@
+{
+  "timestamp": "2026-02-27T02:35:28.329Z",
+  "summary": {
+    "total": 42,
+    "pass": 40,
+    "fail": 1,
+    "warn": 1
+  },
+  "results": [
+    {
+      "group": "QA-1",
+      "name": "윈도우 열림",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:46.290Z"
+    },
+    {
+      "group": "QA-1",
+      "name": "앱 타이틀 LinkFlow",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:46.416Z"
+    },
+    {
+      "group": "QA-1",
+      "name": "페이지 로드 완료",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:46.434Z"
+    },
+    {
+      "group": "QA-2",
+      "name": "자동 로그인",
+      "status": "PASS",
+      "detail": "사용자: 손민준(올라프)",
+      "time": "2026-02-27T02:34:46.557Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 탭",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:47.703Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 추가 모달 열기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:47.912Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 생성",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:50.291Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 표시 확인",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:50.434Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "북마크 삭제",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:53.041Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "캘린더 탭",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:55.542Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "캘린더 렌더링",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:55.654Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "공휴일 목록",
+      "status": "PASS",
+      "detail": "설날 전날, 설날, 설날 다음날",
+      "time": "2026-02-27T02:34:55.657Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "공휴일 표시",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:55.657Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "일정 추가",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:58.774Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "일정 삭제",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:34:58.925Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "메모 탭",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:00.291Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "메모 생성",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:03.008Z"
+    },
+    {
+      "group": "QA-3",
+      "name": "메모 삭제",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:05.712Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "Ctrl+T 새 탭 (JS)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:09.199Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "Ctrl+W 탭 닫기 (JS)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:10.840Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "Ctrl+Shift+T 탭 복원 (JS)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:12.979Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "F11 전체화면",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:14.676Z"
+    },
+    {
+      "group": "QA-4",
+      "name": "Alt+L 잠금 (JS)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:16.011Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "새 탭 버튼",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:18.519Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "URL 바 존재",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:18.657Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "URL 바 입력+이동",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:21.713Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "줌 레벨",
+      "status": "PASS",
+      "detail": "100%",
+      "time": "2026-02-27T02:35:21.833Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "줌 컨트롤",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:21.833Z"
+    },
+    {
+      "group": "QA-5",
+      "name": "탭 닫기 버튼",
+      "status": "FAIL",
+      "detail": "닫기 버튼 없음",
+      "time": "2026-02-27T02:35:21.835Z"
+    },
+    {
+      "group": "QA-6",
+      "name": "분리 버튼 없음",
+      "status": "WARN",
+      "detail": "탭에 분리 버튼 미발견",
+      "time": "2026-02-27T02:35:24.013Z"
+    },
+    {
+      "group": "QA-6",
+      "name": "새 창 분리",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:24.013Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "설정 열기",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:26.095Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "표시 이름",
+      "status": "PASS",
+      "detail": "\"손민준(올라프)\"",
+      "time": "2026-02-27T02:35:26.220Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "프로필",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:26.221Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "잠금 설정",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:26.224Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "업데이트 이력",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:27.761Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "버전 수",
+      "status": "PASS",
+      "detail": "18개, 최신: v2.0.4",
+      "time": "2026-02-27T02:35:27.887Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "버전 목록",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:27.887Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "버전값",
+      "status": "PASS",
+      "detail": "v2.0.4",
+      "time": "2026-02-27T02:35:28.195Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "앱 버전",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:28.196Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "경로값",
+      "status": "PASS",
+      "detail": "C:\\Users\\root\\AppData\\Roaming\\unified-access",
+      "time": "2026-02-27T02:35:28.196Z"
+    },
+    {
+      "group": "QA-7",
+      "name": "userData 경로",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-02-27T02:35:28.196Z"
+    }
+  ]
+}
