@@ -41,12 +41,21 @@ document.addEventListener('keydown', (e) => {
 
 // ═══════ Mouse Back/Forward ═══════
 
-document.addEventListener('mousedown', (e) => {
+function handleNavButton(e) {
+  if (e.button === 3) { e.preventDefault(); e.stopImmediatePropagation(); ipcRenderer.sendToHost('nav-back'); }
+  else if (e.button === 4) { e.preventDefault(); e.stopImmediatePropagation(); ipcRenderer.sendToHost('nav-forward'); }
+}
+document.addEventListener('mousedown', handleNavButton, true);
+document.addEventListener('pointerdown', (e) => {
   if (e.button === 3) { e.preventDefault(); ipcRenderer.sendToHost('nav-back'); }
   else if (e.button === 4) { e.preventDefault(); ipcRenderer.sendToHost('nav-forward'); }
 }, true);
 document.addEventListener('mouseup', (e) => {
-  if (e.button === 3 || e.button === 4) e.preventDefault();
+  if (e.button === 3 || e.button === 4) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+document.addEventListener('auxclick', (e) => {
+  if (e.button === 3) { e.preventDefault(); ipcRenderer.sendToHost('nav-back'); }
+  else if (e.button === 4) { e.preventDefault(); ipcRenderer.sendToHost('nav-forward'); }
 }, true);
 
 // ═══════ Mouse Gestures (Right-click drag) ═══════

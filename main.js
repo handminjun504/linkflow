@@ -420,7 +420,17 @@ function setupWindowEvents(win) {
     const ctrl = input.control && !input.alt;
     const ctrlShift = input.control && input.shift && !input.alt;
 
-    if (input.key === 'F12') {
+    if (input.key === 'ArrowLeft' && input.alt && !input.control && !input.shift) {
+      exec(`(function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
+        if(wv&&wv.canGoBack()){wv.goBack();}})()
+      `);
+      event.preventDefault();
+    } else if (input.key === 'ArrowRight' && input.alt && !input.control && !input.shift) {
+      exec(`(function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
+        if(wv&&wv.canGoForward()){wv.goForward();}})()
+      `);
+      event.preventDefault();
+    } else if (input.key === 'F12') {
       win.webContents.toggleDevTools(); event.preventDefault();
     } else if (input.key === 'F11') {
       win.setFullScreen(!win.isFullScreen()); event.preventDefault();
@@ -663,7 +673,13 @@ app.on('web-contents-created', (_event, contents) => {
       const ctrl = input.control && !input.alt;
       const ctrlShift = input.control && input.shift && !input.alt;
 
-      if (input.key === 'l' && input.alt && !input.control && !input.shift) {
+      if (input.key === 'ArrowLeft' && input.alt && !input.control && !input.shift) {
+        if (contents.canGoBack()) contents.goBack();
+        event.preventDefault();
+      } else if (input.key === 'ArrowRight' && input.alt && !input.control && !input.shift) {
+        if (contents.canGoForward()) contents.goForward();
+        event.preventDefault();
+      } else if (input.key === 'l' && input.alt && !input.control && !input.shift) {
         exec('Auth.showLockScreen()'); event.preventDefault();
       } else if (input.key === 'F11') {
         win.setFullScreen(!win.isFullScreen()); event.preventDefault();
