@@ -1,13 +1,15 @@
 {
   "name": "linkflow",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "LinkFlow - 업무 서비스 통합 관리 데스크톱 앱",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win dir",
     "build-installer": "electron-builder --win nsis",
-    "publish": "electron-builder --win nsis --publish always"
+    "publish": "electron-builder --win nsis --publish always",
+    "publish-mac": "electron-builder --mac --publish always",
+    "publish-all": "electron-builder --win nsis --mac --publish always"
   },
   "author": "handminjun504",
   "license": "MIT",
@@ -37,6 +39,33 @@
         }
       ],
       "icon": "icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "icon.png",
+      "category": "public.app-category.productivity"
+    },
+    "dmg": {
+      "title": "LinkFlow",
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
     },
     "nsis": {
       "oneClick": false,
