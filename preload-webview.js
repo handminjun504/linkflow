@@ -12,14 +12,17 @@ function clampZoom(level) {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(level * 10) / 10));
 }
 
-document.addEventListener('wheel', (e) => {
+function handleZoomWheel(e) {
   if (!e.ctrlKey) return;
   e.preventDefault();
+  e.stopImmediatePropagation();
   const current = webFrame.getZoomLevel();
   const next = clampZoom(current + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
   webFrame.setZoomLevel(next);
   ipcRenderer.sendToHost('zoom-changed', Math.round(webFrame.getZoomFactor() * 100));
-}, { passive: false });
+}
+window.addEventListener('wheel', handleZoomWheel, { capture: true, passive: false });
+document.addEventListener('wheel', handleZoomWheel, { capture: true, passive: false });
 
 document.addEventListener('keydown', (e) => {
   if (!e.ctrlKey || e.altKey) return;
@@ -41,22 +44,28 @@ document.addEventListener('keydown', (e) => {
 
 // ═══════ Mouse Back/Forward ═══════
 
+let navDebounce = 0;
 function handleNavButton(e) {
-  if (e.button === 3) { e.preventDefault(); e.stopImmediatePropagation(); ipcRenderer.sendToHost('nav-back'); }
-  else if (e.button === 4) { e.preventDefault(); e.stopImmediatePropagation(); ipcRenderer.sendToHost('nav-forward'); }
+  if (e.button !== 3 && e.button !== 4) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const now = Date.now();
+  if (now - navDebounce < 200) return;
+  navDebounce = now;
+  ipcRenderer.sendToHost(e.button === 3 ? 'nav-back' : 'nav-forward');
 }
+window.addEventListener('mousedown', handleNavButton, true);
+window.addEventListener('pointerdown', handleNavButton, true);
 document.addEventListener('mousedown', handleNavButton, true);
-document.addEventListener('pointerdown', (e) => {
-  if (e.button === 3) { e.preventDefault(); ipcRenderer.sendToHost('nav-back'); }
-  else if (e.button === 4) { e.preventDefault(); ipcRenderer.sendToHost('nav-forward'); }
+document.addEventListener('pointerdown', handleNavButton, true);
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 3 || e.button === 4) { e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
 document.addEventListener('mouseup', (e) => {
   if (e.button === 3 || e.button === 4) { e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
-document.addEventListener('auxclick', (e) => {
-  if (e.button === 3) { e.preventDefault(); ipcRenderer.sendToHost('nav-back'); }
-  else if (e.button === 4) { e.preventDefault(); ipcRenderer.sendToHost('nav-forward'); }
-}, true);
+window.addEventListener('auxclick', handleNavButton, true);
+document.addEventListener('auxclick', handleNavButton, true);
 
 // ═══════ Mouse Gestures (Right-click drag) ═══════
 

@@ -631,18 +631,35 @@ function setupWindowEvents(win) {
     win.setTitle(title || 'LinkFlow');
   });
 
-  win.on('app-command', (_e, cmd) => {
-    if (cmd === 'browser-backward') {
-      win.webContents.executeJavaScript(`
-        (function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
-        if(wv&&wv.canGoBack()){wv.goBack();return true;} return false; })()
-      `).then(ok => { if (!ok) win.webContents.navigationHistory.goBack(); }).catch(() => {});
-    } else if (cmd === 'browser-forward') {
-      win.webContents.executeJavaScript(`
-        (function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
-        if(wv&&wv.canGoForward()){wv.goForward();return true;} return false; })()
-      `).then(ok => { if (!ok) win.webContents.navigationHistory.goForward(); }).catch(() => {});
+  const goBack = () => {
+    win.webContents.executeJavaScript(`
+      (function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
+      if(wv&&wv.canGoBack()){wv.goBack();return true;} return false; })()
+    `).then(ok => { if (!ok && win.webContents.navigationHistory) win.webContents.navigationHistory.goBack(); }).catch(() => {});
+  };
+  const goForward = () => {
+    win.webContents.executeJavaScript(`
+      (function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
+      if(wv&&wv.canGoForward()){wv.goForward();return true;} return false; })()
+    `).then(ok => { if (!ok && win.webContents.navigationHistory) win.webContents.navigationHistory.goForward(); }).catch(() => {});
+  };
+
+  if (process.platform === 'win32') {
+    try {
+      const WM_APPCOMMAND = 0x0319;
+      win.hookWindowMessage(WM_APPCOMMAND, (_wParam, lParam) => {
+        const cmd = (lParam.readUInt32LE(0) >>> 16) & 0xFFF;
+        if (cmd === 1) setImmediate(goBack);
+        else if (cmd === 2) setImmediate(goForward);
+      });
+    } catch (e) {
+      console.error('[LinkFlow] hookWindowMessage failed:', e);
     }
+  }
+
+  win.on('app-command', (_e, cmd) => {
+    if (cmd === 'browser-backward') goBack();
+    else if (cmd === 'browser-forward') goForward();
   });
 }
 
@@ -810,6 +827,25 @@ app.on('web-contents-created', (_event, contents) => {
   });
 
   if (contents.getType() === 'webview') {
+    contents.on('zoom-changed', (_event, zoomDirection) => {
+      const current = contents.getZoomLevel();
+      const step = 0.5;
+      const newLevel = zoomDirection === 'in'
+        ? Math.min(5, current + step)
+        : Math.max(-5, current - step);
+      contents.setZoomLevel(newLevel);
+      const pct = Math.round(contents.getZoomFactor() * 100);
+      try {
+        const hostContents = contents.hostWebContents;
+        const win = hostContents ? BrowserWindow.fromWebContents(hostContents) : mainWindow;
+        if (win && !win.isDestroyed()) {
+          win.webContents.executeJavaScript(
+            `(function(){var l=document.getElementById('dtf-zoom-label');if(l)l.textContent='${pct}%';})()`
+          ).catch(() => {});
+        }
+      } catch {}
+    });
+
     contents.on('context-menu', (_event, params) => {
       const win = BrowserWindow.fromWebContents(contents.hostWebContents) || mainWindow;
       const menuItems = [];
