@@ -1,6 +1,6 @@
 {
   "name": "linkflow",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "LinkFlow - 업무 서비스 통합 관리 데스크톱 앱",
   "main": "main.js",
   "scripts": {
@@ -14,6 +14,7 @@
   "author": "handminjun504",
   "license": "MIT",
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
@@ -63,8 +64,16 @@
     "dmg": {
       "title": "LinkFlow",
       "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     },
     "nsis": {
@@ -93,7 +102,8 @@
       "node_modules/builder-util-runtime/**/*",
       "node_modules/tiny-typed-emitter/**/*",
       "node_modules/lazy-val/**/*",
-      "node_modules/lodash.isequal/**/*"
+      "node_modules/lodash.isequal/**/*",
+      "node_modules/adm-zip/**/*"
     ],
     "asarUnpack": [
       "preload-webview.js"

@@ -154,6 +154,8 @@ ipcMain.handle('flush-cookies', async () => {
 // ═══════ Chrome Extensions ═══════
 
 const extensionsFile = path.join(userDataPath, 'extensions.json');
+const extensionsDir = path.join(userDataPath, 'extensions');
+try { fs.mkdirSync(extensionsDir, { recursive: true }); } catch {}
 
 function loadExtensionPaths() {
   try { return JSON.parse(fs.readFileSync(extensionsFile, 'utf-8')); }
@@ -182,6 +184,7 @@ async function loadSavedExtensions() {
 }
 
 function getExtensionInfo(ext) {
+  const badge = extBadges.get(ext.id) || {};
   return {
     id: ext.id,
     name: ext.name,
@@ -191,23 +194,17 @@ function getExtensionInfo(ext) {
     icon: ext.manifest?.icons
       ? `file://${path.join(ext.path, ext.manifest.icons[Object.keys(ext.manifest.icons).pop()]).replace(/\\/g, '/')}`
       : '',
+    badgeText: badge.text || '',
+    badgeColor: badge.color || '#4DA8DA',
+    hasPopup: !!(ext.manifest?.action?.default_popup || ext.manifest?.browser_action?.default_popup),
   };
 }
 
-ipcMain.handle('ext-load', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title: '확장 프로그램 폴더 선택',
-    properties: ['openDirectory'],
-    message: '압축 해제된 Chrome 확장 프로그램 폴더를 선택하세요',
-  });
-  if (result.canceled || !result.filePaths.length) return { ok: false };
-
-  const extPath = result.filePaths[0];
+async function installExtensionFromPath(extPath) {
   const manifestPath = path.join(extPath, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
-    return { ok: false, error: 'manifest.json이 없습니다. Chrome 확장 프로그램 폴더를 선택하세요.' };
+    return { ok: false, error: 'manifest.json이 없습니다.' };
   }
-
   try {
     const ses = session.fromPartition('persist:main');
     const ext = await ses.loadExtension(extPath, { allowFileAccess: true });
@@ -220,6 +217,92 @@ ipcMain.handle('ext-load', async () => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+}
+
+// ── CRX Download & Install ──
+
+function extractCrx(crxBuffer, destDir) {
+  const AdmZip = require('adm-zip');
+  let zipStart = 0;
+  if (crxBuffer[0] === 0x43 && crxBuffer[1] === 0x72 && crxBuffer[2] === 0x32 && crxBuffer[3] === 0x34) {
+    const version = crxBuffer.readUInt32LE(4);
+    if (version === 3) {
+      const headerSize = crxBuffer.readUInt32LE(8);
+      zipStart = 12 + headerSize;
+    } else {
+      const pubKeyLen = crxBuffer.readUInt32LE(8);
+      const sigLen = crxBuffer.readUInt32LE(12);
+      zipStart = 16 + pubKeyLen + sigLen;
+    }
+  }
+  const zipBuffer = crxBuffer.slice(zipStart);
+  const zip = new AdmZip(zipBuffer);
+  zip.extractAllTo(destDir, true);
+}
+
+ipcMain.handle('ext-install-crx', async (_e, extIdOrUrl) => {
+  try {
+    let extId = extIdOrUrl.trim();
+    const cwsMatch = extId.match(/chrome\.google\.com\/webstore\/detail\/[^/]*\/([a-z]{32})/i)
+      || extId.match(/chromewebstore\.google\.com\/detail\/[^/]*\/([a-z]{32})/i)
+      || extId.match(/^([a-z]{32})$/i);
+    if (!cwsMatch) {
+      return { ok: false, error: '유효한 확장 프로그램 ID 또는 Chrome Web Store URL을 입력하세요.' };
+    }
+    extId = cwsMatch[1].toLowerCase();
+
+    const crxUrl = `https://clients2.google.com/service/update2/crx?response=redirect&acceptformat=crx2,crx3&prodversion=120.0&x=id%3D${extId}%26installsource%3Dondemand%26uc`;
+
+    const https = require('https');
+    const http = require('http');
+
+    const downloadCrx = (url, maxRedirects = 5) => new Promise((resolve, reject) => {
+      if (maxRedirects <= 0) return reject(new Error('Too many redirects'));
+      const mod = url.startsWith('https') ? https : http;
+      mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return resolve(downloadCrx(res.headers.location, maxRedirects - 1));
+        }
+        if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
+        const chunks = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('error', reject);
+      }).on('error', reject);
+    });
+
+    const crxBuffer = await downloadCrx(crxUrl);
+    if (crxBuffer.length < 100) {
+      return { ok: false, error: '확장 프로그램을 다운로드할 수 없습니다. ID를 확인하세요.' };
+    }
+
+    const destDir = path.join(extensionsDir, extId);
+    if (fs.existsSync(destDir)) {
+      fs.rmSync(destDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(destDir, { recursive: true });
+
+    extractCrx(crxBuffer, destDir);
+
+    if (!fs.existsSync(path.join(destDir, 'manifest.json'))) {
+      fs.rmSync(destDir, { recursive: true, force: true });
+      return { ok: false, error: 'CRX에서 manifest.json을 찾을 수 없습니다.' };
+    }
+
+    return await installExtensionFromPath(destDir);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('ext-load', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '확장 프로그램 폴더 또는 CRX 파일 선택',
+    properties: ['openDirectory'],
+    message: '압축 해제된 Chrome 확장 프로그램 폴더를 선택하세요',
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false };
+  return await installExtensionFromPath(result.filePaths[0]);
 });
 
 ipcMain.handle('ext-remove', async (_e, extId) => {
@@ -228,10 +311,15 @@ ipcMain.handle('ext-remove', async (_e, extId) => {
     const exts = ses.getAllExtensions();
     const ext = exts.find(e => e.id === extId);
     if (ext) {
+      const extPath = ext.path;
       await ses.removeExtension(extId);
-      const paths = loadExtensionPaths().filter(p => p !== ext.path);
+      const paths = loadExtensionPaths().filter(p => p !== extPath);
       saveExtensionPaths(paths);
+      if (extPath.startsWith(extensionsDir)) {
+        try { fs.rmSync(extPath, { recursive: true, force: true }); } catch {}
+      }
     }
+    extBadges.delete(extId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -253,14 +341,15 @@ ipcMain.handle('ext-open-popup', async (_e, extId) => {
     const ses = session.fromPartition('persist:main');
     const exts = ses.getAllExtensions();
     const ext = exts.find(e => e.id === extId);
-    if (!ext || !ext.manifest?.action?.default_popup) return { ok: false };
+    const popup_page = ext?.manifest?.action?.default_popup || ext?.manifest?.browser_action?.default_popup;
+    if (!ext || !popup_page) return { ok: false };
 
-    const popupPath = path.join(ext.path, ext.manifest.action.default_popup);
+    const popupPath = path.join(ext.path, popup_page);
     const popupUrl = `file://${popupPath.replace(/\\/g, '/')}`;
 
     const popup = new BrowserWindow({
       width: 400,
-      height: 500,
+      height: 550,
       frame: true,
       resizable: true,
       title: ext.name,
@@ -279,6 +368,46 @@ ipcMain.handle('ext-open-popup', async (_e, extId) => {
     return { ok: false, error: err.message };
   }
 });
+
+// ── Extension Badge API ──
+
+const extBadges = new Map();
+
+ipcMain.handle('ext-get-badge', (_e, extId) => {
+  return extBadges.get(extId) || { text: '', color: '#4DA8DA' };
+});
+
+// ── Chrome Tabs API Bridge ──
+
+const webviewTabs = new Map();
+
+ipcMain.on('ext-tabs-register', (_e, { tabId, url, title, active }) => {
+  webviewTabs.set(tabId, { id: tabId, url: url || '', title: title || '', active: !!active });
+});
+
+ipcMain.on('ext-tabs-unregister', (_e, tabId) => {
+  webviewTabs.delete(tabId);
+});
+
+ipcMain.on('ext-tabs-update-info', (_e, { tabId, url, title, active }) => {
+  const tab = webviewTabs.get(tabId);
+  if (tab) {
+    if (url !== undefined) tab.url = url;
+    if (title !== undefined) tab.title = title;
+    if (active !== undefined) tab.active = active;
+  }
+});
+
+function setupChromeApiBridge(ses) {
+  ses.on('extension-loaded', (_event, ext) => {
+    console.log('[Extension] Loaded:', ext.name, ext.id);
+  });
+
+  ses.on('extension-unloaded', (_event, ext) => {
+    console.log('[Extension] Unloaded:', ext.name, ext.id);
+    extBadges.delete(ext.id);
+  });
+}
 
 // ═══════ Downloads ═══════
 
@@ -872,6 +1001,8 @@ function setupSessionPersistence() {
 
   stripRestrictiveHeaders(session.defaultSession);
   stripRestrictiveHeaders(session.fromPartition('persist:main'));
+
+  setupChromeApiBridge(session.fromPartition('persist:main'));
 
   app.on('before-quit', () => {
     session.defaultSession.cookies.flushStore().catch(() => {});
