@@ -34,7 +34,17 @@ jobs:
           npm run build-installer 2>&1 | Tee-Object -FilePath build.log
           $exitCode = $LASTEXITCODE
           if ($exitCode -ne 0) {
-            $tail = (Get-Content build.log -Tail 120) -join "`n"
+            $lines = Get-Content build.log
+            $focus = $lines | Where-Object { $_ -match '殊?error|Error|ERR|failed|Cannot|cannot' } | Select-Object -Last 40
+            if (-not $focus -or $focus.Count -eq 0) {
+              $focus = $lines | Select-Object -Last 40
+            }
+            $focus = $focus | ForEach-Object {
+              if ($_ -match '??spawning\s+command=') { '[spawning command omitted]' }
+              elseif ($_.Length -gt 240) { $_.Substring(0, 240) + '... [truncated]' }
+              else { $_ }
+            }
+            $tail = $focus -join "`n"
             $escaped = $tail -replace '%', '%25'
             $escaped = $escaped -replace "`r", ''
             $escaped = $escaped -replace "`n", '%0A'
