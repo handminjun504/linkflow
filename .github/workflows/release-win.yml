@@ -26,7 +26,29 @@ jobs:
         run: npm ci
 
       - name: Build Windows installer
-        run: npm run build-installer
+        shell: powershell
+        env:
+          DEBUG: electron-builder
+        run: |
+          $ErrorActionPreference = 'Continue'
+          npm run build-installer 2>&1 | Tee-Object -FilePath build.log
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            $tail = (Get-Content build.log -Tail 120) -join "`n"
+            $escaped = $tail -replace '%', '%25'
+            $escaped = $escaped -replace "`r", ''
+            $escaped = $escaped -replace "`n", '%0A'
+            Write-Output "::error title=build-installer failed::$escaped"
+            exit $exitCode
+          }
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
 
       - name: Publish GitHub release assets
         if: startsWith(github.ref, 'refs/tags/')
