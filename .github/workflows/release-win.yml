@@ -31,11 +31,11 @@ jobs:
           DEBUG: electron-builder
         run: |
           $ErrorActionPreference = 'Continue'
-          npm run build-installer 2>&1 | Tee-Object -FilePath build.log
+          npm run build-installer -- --publish never 2>&1 | Tee-Object -FilePath build.log
           $exitCode = $LASTEXITCODE
           if ($exitCode -ne 0) {
             $lines = Get-Content build.log
-            $focus = $lines | Where-Object { $_ -match '殊?error|Error|ERR|failed|Cannot|cannot' } | Select-Object -Last 40
+            $focus = $lines | Where-Object { $_ -match 'error|Error|ERR|failed|Cannot|cannot' } | Select-Object -Last 40
             if (-not $focus -or $focus.Count -eq 0) {
               $focus = $lines | Select-Object -Last 40
             }
