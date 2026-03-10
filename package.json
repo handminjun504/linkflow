@@ -107,6 +107,7 @@
     ],
     "asarUnpack": [
       "preload-webview.js"
-    ]
+    ],
+    "npmRebuild": false
   }
 }
