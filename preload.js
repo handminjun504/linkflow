@@ -47,4 +47,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pipCreate: (d) => ipcRenderer.invoke('pip-create', d),
   capturePage: (r) => ipcRenderer.invoke('capture-page', r),
   captureWebview: () => ipcRenderer.invoke('capture-webview'),
+  notify: (payload) => ipcRenderer.invoke('notify', payload),
+  checkForUpdates: () => ipcRenderer.invoke('updater-check'),
+  installUpdateNow: () => ipcRenderer.invoke('updater-install'),
 });

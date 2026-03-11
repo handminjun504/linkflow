@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, safeStorage, session, dialog } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, safeStorage, session, dialog, Notification } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -1046,6 +1046,44 @@ function setupSessionPersistence() {
   });
 }
 
+ipcMain.handle('notify', (_e, payload = {}) => {
+  try {
+    const title = String(payload.title || 'LinkFlow');
+    const body = String(payload.body || '');
+    const iconPath = path.join(__dirname, 'icon.png');
+    if (Notification.isSupported()) {
+      const n = new Notification({
+        title,
+        body,
+        icon: fs.existsSync(iconPath) ? iconPath : undefined,
+      });
+      n.show();
+      return true;
+    }
+  } catch (err) {
+    console.log('[LinkFlow] notify failed:', err?.message || err);
+  }
+  return false;
+});
+
+ipcMain.handle('updater-check', async () => {
+  try {
+    await autoUpdater.checkForUpdates();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
+
+ipcMain.handle('updater-install', () => {
+  try {
+    app.isQuitting = true;
+    autoUpdater.quitAndInstall(false, true);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
 // ═══════ Auto Updater ═══════
 
 autoUpdater.autoDownload = true;
