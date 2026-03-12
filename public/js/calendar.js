@@ -5,6 +5,13 @@ const Calendar = (() => {
   let notifyTimers = [];
   let holidayCache = {};
 
+  const HOLIDAY_API_BASE = (() => {
+    const explicit = window.__LF_API_BASE__;
+    if (explicit) return String(explicit).replace(/\/+$/, '');
+    if (location.origin.includes('bookmark-one-lemon.vercel.app')) return '/api';
+    return 'https://bookmark-one-lemon.vercel.app/api';
+  })();
+
   const DAY_COLORS = [
     { cls: 'task-day-sun', label: '일' },
     { cls: 'task-day-mon', label: '월' },
@@ -51,7 +58,7 @@ const Calendar = (() => {
   async function loadHolidays(year) {
     if (holidayCache[year]) return holidayCache[year];
     try {
-      const res = await fetch(`/api/holidays?year=${year}`);
+      const res = await fetch(`${HOLIDAY_API_BASE}/holidays?year=${year}`);
       const data = await res.json();
       const map = {};
       data.forEach(h => { map[h.date] = h.name; });
