@@ -117,6 +117,7 @@ const Calendar = (() => {
     const grid = document.getElementById('calendar-grid');
     const firstDay = new Date(currentYear, currentMonth, 1).getDay();
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const rowCount = Math.ceil((firstDay + daysInMonth) / 7);
     const today = new Date();
     const isCurrentMonth = today.getFullYear() === currentYear && today.getMonth() === currentMonth;
     const holidays = holidayCache[currentYear] || {};
@@ -166,6 +167,7 @@ const Calendar = (() => {
     }
 
     grid.innerHTML = html;
+    grid.style.setProperty('--calendar-row-count', String(Math.max(rowCount, 5)));
 
     grid.querySelectorAll('.cal-cell:not(.empty)').forEach(cell => {
       cell.addEventListener('click', () => openDayEvents(cell.dataset.date));

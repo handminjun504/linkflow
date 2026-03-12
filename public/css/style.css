@@ -2548,3 +2548,42 @@ body {
     padding: 1px 5px;
   }
 }
+/* Calendar stability patch */
+.calendar-main {
+  min-width: 0;
+}
+
+.calendar-grid {
+  --calendar-row-count: 6;
+  --calendar-row-min: 86px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--calendar-row-count), minmax(var(--calendar-row-min), 1fr));
+  grid-auto-rows: unset;
+  align-content: stretch;
+}
+
+@media (max-width: 1120px) {
+  .calendar-main {
+    overflow: auto;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    min-width: 760px;
+  }
+
+  .calendar-grid {
+    --calendar-row-min: 84px;
+  }
+}
+
+@media (max-width: 840px) {
+  .calendar-weekdays,
+  .calendar-grid {
+    min-width: 700px;
+  }
+
+  .calendar-grid {
+    --calendar-row-min: 78px;
+  }
+}
