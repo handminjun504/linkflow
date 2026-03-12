@@ -3,7 +3,7 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
-const APP_URL = 'https://bookmark-one-lemon.vercel.app';
+const APP_URL = process.env.LINKFLOW_APP_URL || 'https://raw.githack.com/handminjun504/linkflow/web/public/index.html';
 let mainWindow = null;
 let tray = null;
 
