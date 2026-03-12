@@ -23,8 +23,10 @@ const Calendar = (() => {
     document.getElementById('cal-prev').addEventListener('click', () => navigate(-1));
     document.getElementById('cal-next').addEventListener('click', () => navigate(1));
     document.getElementById('cal-today').addEventListener('click', goToday);
+    document.getElementById('cal-add')?.addEventListener('click', () => openAddEvent(getTodayDateStr()));
     document.getElementById('event-form').addEventListener('submit', saveEvent);
     document.getElementById('evt-delete-btn').addEventListener('click', deleteCurrentEvent);
+    bindDayEventsModal();
 
     document.getElementById('evt-color-picker').querySelectorAll('.color-dot').forEach(dot => {
       dot.addEventListener('click', () => {
@@ -157,14 +159,7 @@ const Calendar = (() => {
     grid.innerHTML = html;
 
     grid.querySelectorAll('.cal-cell:not(.empty)').forEach(cell => {
-      cell.addEventListener('click', e => {
-        if (e.target.closest('.cal-event-bar')) {
-          const evtId = e.target.closest('.cal-event-bar').dataset.id;
-          openEditEvent(evtId);
-        } else {
-          openAddEvent(cell.dataset.date);
-        }
-      });
+      cell.addEventListener('click', () => openDayEvents(cell.dataset.date));
     });
   }
 
@@ -214,11 +209,13 @@ const Calendar = (() => {
         const checked = t.is_done ? 'checked' : '';
         const doneClass = t.is_done ? ' task-done' : '';
         const time = t.start_time ? t.start_time.substring(0, 5) : '';
+        const note = (t.description || '').trim();
         html += `<div class="task-item${doneClass}">
           <input type="checkbox" class="task-check" data-id="${t.id}" ${checked} />
           <div class="task-item-body">
             <span class="task-item-title">${escapeHtml(t.title)}</span>
             ${time ? `<span class="task-item-time">${time}</span>` : ''}
+            ${note ? `<span class="task-item-note">${escapeHtml(note)}</span>` : ''}
           </div>
           <span class="task-color-dot" style="background:${t.color}"></span>
         </div>`;
@@ -260,6 +257,72 @@ const Calendar = (() => {
     UI.openModal('event-modal');
   }
 
+
+  function bindDayEventsModal() {
+    document.getElementById('btn-day-events-add')?.addEventListener('click', () => {
+      const selectedDate = document.getElementById('day-events-date')?.value || getTodayDateStr();
+      UI.closeModal('day-events-modal');
+      openAddEvent(selectedDate);
+    });
+
+    document.getElementById('day-events-list')?.addEventListener('click', e => {
+      const item = e.target.closest('.day-event-item');
+      if (!item) return;
+      UI.closeModal('day-events-modal');
+      openEditEvent(item.dataset.id);
+    });
+  }
+
+  function openDayEvents(dateStr) {
+    if (!dateStr) return;
+    const titleEl = document.getElementById('day-events-title');
+    const dateEl = document.getElementById('day-events-date');
+    if (titleEl) titleEl.textContent = `${formatDateLabel(dateStr)} 일정`;
+    if (dateEl) dateEl.value = dateStr;
+    renderDayEventsList(dateStr);
+    UI.openModal('day-events-modal');
+  }
+
+  function renderDayEventsList(dateStr) {
+    const listEl = document.getElementById('day-events-list');
+    if (!listEl) return;
+
+    const dayEvents = events
+      .filter(e => e.start_date === dateStr)
+      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+
+    if (!dayEvents.length) {
+      listEl.innerHTML = '<div class="day-event-empty"><i class="ri-calendar-event-line"></i><p>등록된 일정이 없습니다</p></div>';
+      return;
+    }
+
+    listEl.innerHTML = dayEvents.map(ev => {
+      const time = ev.start_time ? ev.start_time.substring(0, 5) : '종일';
+      const note = (ev.description || '').trim();
+      const doneClass = ev.is_done ? ' day-event-done' : '';
+      return `<button type="button" class="day-event-item${doneClass}" data-id="${ev.id}">
+        <span class="day-event-color" style="background:${ev.color}"></span>
+        <div class="day-event-main">
+          <div class="day-event-line">
+            <span class="day-event-time">${time}</span>
+            <span class="day-event-title">${escapeHtml(ev.title)}</span>
+          </div>
+          ${note ? `<div class="day-event-note">${escapeHtml(note)}</div>` : ''}
+        </div>
+        <i class="ri-arrow-right-s-line"></i>
+      </button>`;
+    }).join('');
+  }
+
+  function formatDateLabel(dateStr) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
+  }
+
+  function getTodayDateStr() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
   function openEditEvent(id) {
     const ev = events.find(e => e.id === id);
     if (!ev) return;
