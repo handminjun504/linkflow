@@ -52,6 +52,48 @@ jobs:
             exit $exitCode
           }
 
+      - name: Normalize updater asset names
+        shell: powershell
+        run: |
+          $latestPath = Join-Path $PWD 'dist/latest.yml'
+          if (-not (Test-Path $latestPath)) {
+            throw "dist/latest.yml not found"
+          }
+
+          $latest = Get-Content -Raw -Path $latestPath
+          $pathMatch = [regex]::Match($latest, '(?m)^path:\s*["'']?(.+?)["'']?\s*$')
+          if (-not $pathMatch.Success) {
+            throw "Could not parse installer path from dist/latest.yml"
+          }
+
+          $expectedName = $pathMatch.Groups[1].Value.Trim()
+          $expectedExe = Join-Path $PWD ("dist/" + $expectedName)
+          $expectedBlockmap = "$expectedExe.blockmap"
+
+          if (-not (Test-Path $expectedExe)) {
+            $actualExe = Get-ChildItem -Path (Join-Path $PWD 'dist') -Filter '*.exe' | Select-Object -First 1
+            if (-not $actualExe) {
+              throw "No installer exe found in dist/"
+            }
+
+            Write-Host "Expected installer '$expectedName' missing. Renaming '$($actualExe.Name)' to '$expectedName'."
+            Move-Item -Path $actualExe.FullName -Destination $expectedExe -Force
+
+            $actualBlockmap = "$($actualExe.FullName).blockmap"
+            if ((Test-Path $actualBlockmap) -and -not (Test-Path $expectedBlockmap)) {
+              Move-Item -Path $actualBlockmap -Destination $expectedBlockmap -Force
+            }
+          }
+
+          if (-not (Test-Path $expectedBlockmap)) {
+            $fallbackBlockmap = Get-ChildItem -Path (Join-Path $PWD 'dist') -Filter '*.exe.blockmap' | Select-Object -First 1
+            if ($fallbackBlockmap) {
+              Move-Item -Path $fallbackBlockmap.FullName -Destination $expectedBlockmap -Force
+            }
+          }
+
+          Write-Host "Updater assets verified for '$expectedName'."
+
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
