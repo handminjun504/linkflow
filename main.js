@@ -3,7 +3,7 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
-const APP_URL = process.env.LINKFLOW_APP_URL || 'https://raw.githack.com/handminjun504/linkflow/web/public/index.html';
+const APP_URL = process.env.LINKFLOW_APP_URL || 'https://raw.githack.com/handminjun504/linkflow/75bb406/public/index.html';
 let mainWindow = null;
 let tray = null;
 
