@@ -2487,3 +2487,64 @@ body {
 .task-day-today {
   border-left-color: #111111;
 }
+/* Icon refresh + calendar anti-crush */
+.main-tab i {
+  font-size: 17px;
+}
+
+.icon-btn i {
+  font-size: 17px;
+}
+
+.header-right .icon-btn {
+  width: 36px;
+  height: 36px;
+}
+
+@media (max-width: 1120px) {
+  .calendar-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 112px);
+    overflow: auto;
+  }
+
+  .task-sidebar {
+    width: 100%;
+    max-height: 220px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .calendar-main {
+    min-height: 540px;
+    overflow: auto;
+  }
+
+  .calendar-grid {
+    margin: 0 14px 12px;
+    grid-auto-rows: minmax(92px, 1fr);
+    min-height: 470px;
+    overflow: auto;
+  }
+
+  .cal-cell {
+    min-height: 92px;
+  }
+}
+
+@media (max-width: 840px) {
+  .calendar-grid {
+    grid-auto-rows: minmax(82px, 1fr);
+    min-height: 420px;
+  }
+
+  .cal-cell {
+    min-height: 82px;
+  }
+
+  .cal-event-bar {
+    font-size: 10px;
+    padding: 1px 5px;
+  }
+}

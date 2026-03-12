@@ -12,6 +12,8 @@ const Calendar = (() => {
     return 'https://bookmark-one-lemon.vercel.app/api';
   })();
 
+  const DEFAULT_EVENT_COLOR = '#111111';
+
   const DAY_COLORS = [
     { cls: 'task-day-sun', label: '일' },
     { cls: 'task-day-mon', label: '월' },
@@ -153,7 +155,7 @@ const Calendar = (() => {
           const recurIcon = ev._recurring || ev.recurrence_type ? '<i class="ri-repeat-line" style="font-size:9px;margin-right:2px"></i>' : '';
           const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
           const doneClass = ev.is_done ? ' cal-event-done' : '';
-          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color}" data-id="${ev.id}" title="${time}${ev.title}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}</div>`;
+          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${time}${ev.title}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}</div>`;
         });
         if (dayEvents.length > 3) {
           html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
@@ -224,7 +226,7 @@ const Calendar = (() => {
             ${time ? `<span class="task-item-time">${time}</span>` : ''}
             ${note ? `<span class="task-item-note">${escapeHtml(note)}</span>` : ''}
           </div>
-          <span class="task-color-dot" style="background:${t.color}"></span>
+          <span class="task-color-dot" style="background:${t.color || DEFAULT_EVENT_COLOR}"></span>
         </div>`;
       });
       html += '</div>';
@@ -253,14 +255,14 @@ const Calendar = (() => {
     document.getElementById('evt-delete-btn').classList.add('hidden');
     document.getElementById('event-form').reset();
     document.getElementById('evt-date').value = dateStr || '';
-    document.getElementById('evt-color').value = '#4DA8DA';
+    document.getElementById('evt-color').value = DEFAULT_EVENT_COLOR;
     document.getElementById('evt-edit-id').value = '';
     document.getElementById('evt-recurrence-end-wrap').style.display = 'none';
     document.getElementById('evt-recurrence-day-wrap').style.display = 'none';
     document.getElementById('evt-skip-weekend-wrap').style.display = 'none';
     document.getElementById('evt-skip-weekend').checked = true;
     document.getElementById('evt-recurrence-day').value = '';
-    resetColorPicker('evt-color-picker', '#4DA8DA');
+    resetColorPicker('evt-color-picker', DEFAULT_EVENT_COLOR);
     UI.openModal('event-modal');
   }
 
@@ -308,7 +310,7 @@ const Calendar = (() => {
       const note = (ev.description || '').trim();
       const doneClass = ev.is_done ? ' day-event-done' : '';
       return `<button type="button" class="day-event-item${doneClass}" data-id="${ev.id}">
-        <span class="day-event-color" style="background:${ev.color}"></span>
+        <span class="day-event-color" style="background:${ev.color || DEFAULT_EVENT_COLOR}"></span>
         <div class="day-event-main">
           <div class="day-event-line">
             <span class="day-event-time">${time}</span>
@@ -353,8 +355,8 @@ const Calendar = (() => {
     document.getElementById('evt-recurrence-day').value = isMonthly ? (ev.recurrence_day || new Date(ev.start_date + 'T00:00:00').getDate()) : '';
     document.getElementById('evt-skip-weekend').checked = ev.skip_weekend || false;
     document.getElementById('evt-is-task').checked = ev.is_task || false;
-    document.getElementById('evt-color').value = ev.color || '#4DA8DA';
-    resetColorPicker('evt-color-picker', ev.color || '#4DA8DA');
+    document.getElementById('evt-color').value = ev.color || DEFAULT_EVENT_COLOR;
+    resetColorPicker('evt-color-picker', ev.color || DEFAULT_EVENT_COLOR);
     UI.openModal('event-modal');
   }
 
