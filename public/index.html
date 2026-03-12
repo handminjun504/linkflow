@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LinkFlow</title>
-  <meta name="theme-color" content="#4DA8DA" />
+  <meta name="theme-color" content="#111111" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="./manifest.json" />
@@ -43,7 +43,7 @@
       <div id="setup-section" class="hidden">
         <div class="divider"><span>최초 설정</span></div>
         <form id="setup-form" autocomplete="off">
-          <div class="input-group"><i class="ri-admin-line"></i><input type="text" id="setup-username" placeholder="관리자 아이디" autocomplete="username" required /></div>
+          <div class="input-group"><i class="ri-admin-fill"></i><input type="text" id="setup-username" placeholder="관리자 아이디" autocomplete="username" required /></div>
           <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="setup-password" placeholder="관리자 비밀번호" autocomplete="new-password" required /></div>
           <div class="input-group"><i class="ri-user-heart-line"></i><input type="text" id="setup-display" placeholder="표시 이름" required /></div>
           <button type="submit" class="btn btn-accent btn-full">관리자 계정 생성</button>
@@ -67,9 +67,9 @@
       </div>
       <div class="header-right">
         <div class="ext-toolbar" id="ext-toolbar" style="display:none"></div>
-        <button class="icon-btn" id="btn-add-bookmark" title="북마크 추가"><i class="ri-add-circle-line"></i></button>
-        <button class="icon-btn" id="btn-settings" title="설정"><i class="ri-settings-3-line"></i></button>
-        <button class="icon-btn" id="btn-admin" title="관리자" style="display:none"><i class="ri-admin-line"></i></button>
+        <button class="icon-btn" id="btn-add-bookmark" title="북마크 추가"><i class="ri-add-circle-fill"></i></button>
+        <button class="icon-btn" id="btn-settings" title="설정"><i class="ri-settings-3-fill"></i></button>
+        <button class="icon-btn" id="btn-admin" title="관리자" style="display:none"><i class="ri-admin-fill"></i></button>
         <div class="user-badge" id="user-badge">
           <span id="user-display-name"></span>
           <i class="ri-arrow-down-s-line"></i>
@@ -82,12 +82,12 @@
     </header>
 
     <nav class="main-tab-bar" id="main-tab-bar">
-      <button class="main-tab active" data-tab="bookmarks"><i class="ri-bookmark-line"></i><span>북마크</span></button>
-      <button class="main-tab" data-tab="calendar"><i class="ri-calendar-line"></i><span>캘린더</span></button>
-      <button class="main-tab" data-tab="memos"><i class="ri-sticky-note-line"></i><span>메모</span></button>
+      <button class="main-tab active" data-tab="bookmarks"><i class="ri-bookmark-fill"></i><span>북마크</span></button>
+      <button class="main-tab" data-tab="calendar"><i class="ri-calendar-fill"></i><span>캘린더</span></button>
+      <button class="main-tab" data-tab="memos"><i class="ri-sticky-note-fill"></i><span>메모</span></button>
       <div class="tab-divider" id="tab-divider"></div>
       <div id="dynamic-tabs"></div>
-      <button class="main-tab tab-add-btn" id="btn-add-tab" title="새 탭"><i class="ri-add-line"></i></button>
+      <button class="main-tab tab-add-btn" id="btn-add-tab" title="새 탭"><i class="ri-add-fill"></i></button>
     </nav>
 
     <!-- Tab: Bookmarks -->
@@ -97,9 +97,9 @@
       </div>
       <div class="bookmarks-grid" id="bookmarks-grid"></div>
       <div class="empty-state hidden" id="empty-state">
-        <i class="ri-bookmark-line"></i>
+        <i class="ri-bookmark-fill"></i>
         <p>등록된 북마크가 없습니다</p>
-        <button class="btn btn-primary" id="btn-empty-add"><i class="ri-add-line"></i> 첫 번째 북마크 추가</button>
+        <button class="btn btn-primary" id="btn-empty-add"><i class="ri-add-fill"></i> 첫 번째 북마크 추가</button>
       </div>
     </main>
 
@@ -123,7 +123,7 @@
             </div>
             <div class="calendar-header-actions">
               <button class="btn btn-sm btn-outline" id="cal-today">오늘</button>
-              <button class="btn btn-primary btn-sm" id="cal-add"><i class="ri-add-line"></i> 일정 추가</button>
+              <button class="btn btn-primary btn-sm" id="cal-add"><i class="ri-add-fill"></i> 일정 추가</button>
             </div>
           </div>
           <div class="calendar-weekdays">
@@ -139,14 +139,14 @@
     <!-- Tab: Memos -->
     <main class="tab-content" id="tab-memos">
       <div class="memos-header">
-        <h2><i class="ri-sticky-note-line"></i> 메모</h2>
-        <button class="btn btn-primary btn-sm" id="btn-add-memo"><i class="ri-add-line"></i> 새 메모</button>
+        <h2><i class="ri-sticky-note-fill"></i> 메모</h2>
+        <button class="btn btn-primary btn-sm" id="btn-add-memo"><i class="ri-add-fill"></i> 새 메모</button>
       </div>
       <div class="memos-grid" id="memos-grid"></div>
       <div class="empty-state hidden" id="memo-empty-state">
-        <i class="ri-sticky-note-line"></i>
+        <i class="ri-sticky-note-fill"></i>
         <p>메모가 없습니다</p>
-        <button class="btn btn-primary" id="btn-memo-empty-add"><i class="ri-add-line"></i> 첫 번째 메모 작성</button>
+        <button class="btn btn-primary" id="btn-memo-empty-add"><i class="ri-add-fill"></i> 첫 번째 메모 작성</button>
       </div>
     </main>
 
@@ -157,7 +157,7 @@
   <!-- ══════ Settings Panel ══════ -->
   <div id="settings-panel" class="side-panel hidden">
     <div class="panel-header">
-      <h2><i class="ri-settings-3-line"></i> 설정</h2>
+      <h2><i class="ri-settings-3-fill"></i> 설정</h2>
       <button class="icon-btn" id="close-settings"><i class="ri-close-line"></i></button>
     </div>
     <div class="panel-body">
@@ -185,24 +185,24 @@
         <button class="btn btn-primary btn-sm" id="btn-save-lock">저장</button>
       </form>
       <div class="setting-group" id="pw-manage-section" style="display:none">
-        <h3><i class="ri-key-2-line" style="color:var(--primary)"></i> 저장된 비밀번호</h3>
+        <h3><i class="ri-key-2-fill" style="color:var(--primary)"></i> 저장된 비밀번호</h3>
         <div id="saved-pw-list"></div>
       </div>
       <div class="setting-group" id="ext-manage-section" style="display:none">
         <h3><i class="ri-puzzle-line" style="color:var(--primary)"></i> 확장 프로그램</h3>
         <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Chrome 웹 스토어에서 다운로드한 확장 프로그램의 압축 해제 폴더를 불러올 수 있습니다.</p>
-        <button class="btn btn-primary btn-sm" id="btn-load-extension"><i class="ri-add-line"></i> 확장 프로그램 추가</button>
+        <button class="btn btn-primary btn-sm" id="btn-load-extension"><i class="ri-add-fill"></i> 확장 프로그램 추가</button>
         <div id="ext-list" style="margin-top:8px"></div>
       </div>
       <div class="setting-group">
         <h3>카테고리 관리</h3>
         <div id="category-list" class="category-manage-list"></div>
-        <button class="btn btn-outline btn-sm" id="btn-add-category"><i class="ri-add-line"></i> 카테고리 추가</button>
+        <button class="btn btn-outline btn-sm" id="btn-add-category"><i class="ri-add-fill"></i> 카테고리 추가</button>
       </div>
       <div class="setting-group">
-        <h3><i class="ri-history-line" style="color:var(--primary)"></i> 앱 정보</h3>
+        <h3><i class="ri-history-fill" style="color:var(--primary)"></i> 앱 정보</h3>
         <p id="app-version-display" style="font-size:12px;color:var(--text-muted);margin-bottom:8px"></p>
-        <button class="btn btn-outline btn-sm" id="btn-update-history"><i class="ri-history-line"></i> 업데이트 이력</button>
+        <button class="btn btn-outline btn-sm" id="btn-update-history"><i class="ri-history-fill"></i> 업데이트 이력</button>
       </div>
     </div>
   </div>
@@ -210,13 +210,13 @@
   <!-- ══════ Admin Panel ══════ -->
   <div id="admin-panel" class="side-panel hidden">
     <div class="panel-header">
-      <h2><i class="ri-admin-line"></i> 관리자</h2>
+      <h2><i class="ri-admin-fill"></i> 관리자</h2>
       <button class="icon-btn" id="close-admin"><i class="ri-close-line"></i></button>
     </div>
     <div class="panel-body">
       <div class="setting-group">
         <h3>사용자 관리</h3>
-        <button class="btn btn-primary btn-sm" id="btn-create-user"><i class="ri-user-add-line"></i> 사용자 생성</button>
+        <button class="btn btn-primary btn-sm" id="btn-create-user"><i class="ri-user-add-fill"></i> 사용자 생성</button>
         <div id="admin-user-list" class="user-list"></div>
       </div>
     </div>
@@ -384,7 +384,7 @@
       <div class="day-events-list" id="day-events-list"></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" data-modal="day-events-modal">닫기</button>
-        <button type="button" class="btn btn-primary" id="btn-day-events-add"><i class="ri-add-line"></i> 일정 추가</button>
+        <button type="button" class="btn btn-primary" id="btn-day-events-add"><i class="ri-add-fill"></i> 일정 추가</button>
       </div>
     </div>
   </div>
@@ -458,7 +458,7 @@
   <div id="update-history-modal" class="modal hidden">
     <div class="modal-content modal-lg">
       <div class="modal-header">
-        <h3><i class="ri-history-line"></i> 업데이트 이력</h3>
+        <h3><i class="ri-history-fill"></i> 업데이트 이력</h3>
         <button class="icon-btn modal-close" data-modal="update-history-modal"><i class="ri-close-line"></i></button>
       </div>
       <div id="update-history-body" class="update-history-body">
@@ -472,7 +472,7 @@
 
   <!-- ══════ Password Save Bar ══════ -->
   <div id="pw-save-bar" class="pw-save-bar hidden">
-    <i class="ri-key-2-line"></i>
+    <i class="ri-key-2-fill"></i>
     <span>비밀번호를 저장하시겠습니까?</span>
     <span id="pw-save-domain" class="pw-save-domain"></span>
     <span id="pw-save-user" class="pw-save-user"></span>

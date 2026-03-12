@@ -4,8 +4,8 @@
   "description": "업무 서비스 통합 관리 대시보드",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#F0F6FA",
-  "theme_color": "#4DA8DA",
+  "background_color": "#F6F6F6",
+  "theme_color": "#111111",
   "orientation": "any",
   "icons": [
     {
