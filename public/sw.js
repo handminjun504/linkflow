@@ -1,4 +1,4 @@
-const CACHE_NAME = 'linkflow-v4';
+const CACHE_NAME = 'linkflow-v5';
 const STATIC_ASSETS = [
   '/',
   '/css/style.css',
@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   '/js/app.js',
   '/js/calendar.js',
   '/js/memos.js',
+  '/icons/brand-mark.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];

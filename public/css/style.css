@@ -96,17 +96,17 @@ body {
   margin-bottom: 32px;
 }
 
-.login-logo i {
-  font-size: 48px;
-  color: var(--primary);
-  background: var(--primary-bg);
-  width: 80px;
-  height: 80px;
-  border-radius: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.brand-mark {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.login-logo-mark {
+  width: 84px;
+  height: 84px;
   margin-bottom: 16px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .login-logo h1 {
@@ -357,8 +357,8 @@ body {
 }
 
 .header-logo-icon {
-  font-size: 24px;
-  color: var(--primary);
+  width: 34px;
+  height: 34px;
 }
 
 .header-title {
@@ -2302,21 +2302,14 @@ body {
   border: 1px solid var(--border);
 }
 
-.login-logo i,
+.login-logo-mark,
 .header-logo-icon {
-  background: #111111;
-  color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  background: transparent;
+  box-shadow: none;
 }
 
 .header-logo-icon {
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
+  display: block;
 }
 
 .app-header {
