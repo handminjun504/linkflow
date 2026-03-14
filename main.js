@@ -1,9 +1,11 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, safeStorage, session, dialog, Notification } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, safeStorage, session, dialog, Notification, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const { spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
 const APP_URL = process.env.LINKFLOW_APP_URL || 'https://raw.githack.com/handminjun504/linkflow/e12ca4e/public/index.html';
+const RELEASES_URL = 'https://github.com/handminjun504/linkflow/releases/latest';
 let mainWindow = null;
 let tray = null;
 
@@ -42,6 +44,59 @@ app.on('second-instance', () => {
     mainWindow.focus();
   }
 });
+
+function getMacBundlePath() {
+  const marker = '/Contents/MacOS/';
+  const idx = process.execPath.indexOf(marker);
+  if (idx === -1) return process.execPath;
+  return process.execPath.slice(0, idx);
+}
+
+function getMacAutoUpdateSupport() {
+  if (process.platform !== 'darwin') {
+    return { supported: true, reason: 'non-mac' };
+  }
+  if (!app.isPackaged) {
+    return { supported: false, reason: 'dev-build', detail: 'not packaged' };
+  }
+
+  const result = spawnSync('/usr/bin/codesign', ['-dv', '--verbose=4', getMacBundlePath()], {
+    encoding: 'utf-8',
+  });
+  const detail = `${result.stdout || ''}\n${result.stderr || ''}`.trim();
+
+  if (result.status !== 0) {
+    return { supported: false, reason: 'unsigned', detail };
+  }
+  if (!/Authority=/.test(detail)) {
+    return { supported: false, reason: 'adhoc', detail };
+  }
+  return { supported: true, reason: 'signed', detail };
+}
+
+function showManualMacUpdateDialog(version = '') {
+  const detail = version
+    ? `새 버전 (v${version})은 확인됐지만 현재 설치된 mac 앱은 자동 재시작 업데이트를 적용할 수 없습니다.`
+    : '현재 설치된 mac 앱은 자동 재시작 업데이트를 적용할 수 없습니다.';
+  const signingDetail = getMacAutoUpdateSupport().reason === 'adhoc'
+    ? '이 앱은 Apple Developer 서명이 없는 adhoc 빌드라서 macOS에서 자동 교체 설치를 완료할 수 없습니다.'
+    : '이 앱은 유효한 Apple Developer 서명이 없는 빌드라서 macOS에서 자동 교체 설치를 완료할 수 없습니다.';
+
+  return dialog.showMessageBox(mainWindow || undefined, {
+    type: 'info',
+    title: '수동 설치 필요',
+    message: `${detail}\n\n릴리스 페이지를 열어 최신 버전을 직접 설치해 주세요.`,
+    detail: signingDetail,
+    buttons: ['릴리스 열기', '닫기'],
+    defaultId: 0,
+    cancelId: 1,
+  }).then(({ response }) => {
+    if (response === 0) {
+      return shell.openExternal(RELEASES_URL).catch(() => {});
+    }
+    return undefined;
+  });
+}
 
 // ═══════ Password Store (per-user, safeStorage encrypted) ═══════
 
@@ -1075,8 +1130,14 @@ ipcMain.handle('updater-check', async () => {
   }
 });
 
-ipcMain.handle('updater-install', () => {
+ipcMain.handle('updater-install', async () => {
   try {
+    const support = getMacAutoUpdateSupport();
+    if (!support.supported) {
+      console.log('[LinkFlow] Manual mac update required:', support.reason);
+      await showManualMacUpdateDialog();
+      return { ok: false, manual: true, error: 'manual mac update required' };
+    }
     app.isQuitting = true;
     autoUpdater.quitAndInstall(false, true);
     return { ok: true };
@@ -1107,6 +1168,12 @@ autoUpdater.on('download-progress', (progress) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   if (!mainWindow) return;
+  const support = getMacAutoUpdateSupport();
+  if (!support.supported) {
+    console.log('[LinkFlow] Downloaded mac update requires manual install:', support.reason);
+    showManualMacUpdateDialog(info.version).catch(() => {});
+    return;
+  }
   dialog.showMessageBox(mainWindow, {
     type: 'info',
     title: '업데이트 준비 완료',
