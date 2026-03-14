@@ -14,6 +14,11 @@ const Memos = (() => {
         document.getElementById('memo-color').value = dot.dataset.color;
       });
     });
+
+    window.addEventListener('lf:clients-changed', () => {
+      populateClientOptions(document.getElementById('memo-client')?.value || '');
+      if (document.getElementById('tab-memos')?.classList.contains('active')) render();
+    });
   }
 
   async function load() {
@@ -41,6 +46,7 @@ const Memos = (() => {
       const pinIcon = m.is_pinned ? 'ri-pushpin-2-fill' : 'ri-pushpin-line';
       const pinClass = m.is_pinned ? 'pinned' : '';
       const preview = (m.content || '').substring(0, 120);
+      const clientName = getClientName(m.client_id);
       return `
         <div class="memo-card ${pinClass}" data-id="${m.id}" style="background:${m.color || '#fff'}">
           <div class="memo-card-header">
@@ -49,6 +55,7 @@ const Memos = (() => {
           </div>
           <div class="memo-card-body">${escapeHtml(preview)}</div>
           <div class="memo-card-footer">
+            ${clientName ? `<span class="memo-card-client">${escapeHtml(clientName)}</span>` : ''}
             <span class="memo-card-date">${formatDate(m.updated_at)}</span>
           </div>
         </div>`;
@@ -75,11 +82,13 @@ const Memos = (() => {
   }
 
   function openAddMemo() {
+    populateClientOptions();
     document.getElementById('memo-modal-title').textContent = '새 메모';
     document.getElementById('memo-delete-btn').classList.add('hidden');
     document.getElementById('memo-form').reset();
     document.getElementById('memo-edit-id').value = '';
     document.getElementById('memo-color').value = '#FFFFFF';
+    document.getElementById('memo-client').value = '';
     resetColorPicker('#FFFFFF');
     UI.openModal('memo-modal');
     document.getElementById('memo-title').focus();
@@ -88,10 +97,12 @@ const Memos = (() => {
   function openEditMemo(id) {
     const m = memos.find(x => x.id === id);
     if (!m) return;
+    populateClientOptions(m.client_id || '');
     document.getElementById('memo-modal-title').textContent = '메모 수정';
     document.getElementById('memo-delete-btn').classList.remove('hidden');
     document.getElementById('memo-edit-id').value = id;
     document.getElementById('memo-title').value = m.title || '';
+    document.getElementById('memo-client').value = m.client_id || '';
     document.getElementById('memo-content').value = m.content || '';
     document.getElementById('memo-color').value = m.color || '#FFFFFF';
     resetColorPicker(m.color || '#FFFFFF');
@@ -109,6 +120,7 @@ const Memos = (() => {
     const id = document.getElementById('memo-edit-id').value;
     const data = {
       title: document.getElementById('memo-title').value.trim(),
+      client_id: document.getElementById('memo-client').value || null,
       content: document.getElementById('memo-content').value,
       color: document.getElementById('memo-color').value,
     };
@@ -147,6 +159,14 @@ const Memos = (() => {
     if (!iso) return '';
     const d = new Date(iso);
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function populateClientOptions(selected = '') {
+    Clients?.populateSelect?.('memo-client', selected);
+  }
+
+  function getClientName(clientId) {
+    return Clients?.getClientName?.(clientId) || '';
   }
 
   function escapeHtml(str) {

@@ -83,6 +83,7 @@
 
     <nav class="main-tab-bar" id="main-tab-bar">
       <button class="main-tab active" data-tab="bookmarks"><i class="ri-bookmark-3-line"></i><span>북마크</span></button>
+      <button class="main-tab" data-tab="clients"><i class="ri-building-2-line"></i><span>거래처</span></button>
       <button class="main-tab" data-tab="calendar"><i class="ri-calendar-schedule-line"></i><span>캘린더</span></button>
       <button class="main-tab" data-tab="memos"><i class="ri-sticky-note-2-line"></i><span>메모</span></button>
       <div class="tab-divider" id="tab-divider"></div>
@@ -100,6 +101,158 @@
         <i class="ri-bookmark-3-line"></i>
         <p>등록된 북마크가 없습니다</p>
         <button class="btn btn-primary" id="btn-empty-add"><i class="ri-add-line"></i> 첫 번째 북마크 추가</button>
+      </div>
+    </main>
+
+    <!-- Tab: Clients -->
+    <main class="tab-content" id="tab-clients">
+      <div class="clients-shell">
+        <aside class="clients-sidebar">
+          <div class="clients-sidebar-header">
+            <div>
+              <p class="clients-kicker">업무 운영</p>
+              <h2>거래처</h2>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-add-client"><i class="ri-add-line"></i> 추가</button>
+          </div>
+
+          <div class="clients-toolbar-row">
+            <div class="clients-filter-pills" id="client-filter-pills"></div>
+            <div class="clients-toolbar-actions">
+              <button class="btn btn-outline btn-sm" id="btn-save-client-view"><i class="ri-bookmark-line"></i> 현재 보기 저장</button>
+              <button class="btn btn-ghost btn-sm" id="btn-reset-client-filters"><i class="ri-refresh-line"></i> 초기화</button>
+              <button class="btn btn-ghost btn-sm" id="btn-export-clients-csv"><i class="ri-file-download-line"></i> CSV</button>
+            </div>
+            <div class="clients-custom-view-wrap hidden" id="client-custom-view-wrap">
+              <button class="client-custom-view" id="btn-load-client-custom-view"></button>
+              <button class="icon-btn" id="btn-clear-client-custom-view" title="저장 뷰 삭제"><i class="ri-close-line"></i></button>
+            </div>
+          </div>
+
+          <div class="clients-search-box">
+            <i class="ri-search-line"></i>
+            <input type="text" id="clients-search-input" placeholder="거래처, 담당자, 메모 검색" />
+          </div>
+
+          <section class="clients-inbox-card">
+            <div class="clients-section-head">
+              <h3><i class="ri-inbox-archive-line"></i> 다음 액션 Inbox</h3>
+              <span class="clients-section-count" id="client-inbox-count">0</span>
+            </div>
+            <div class="clients-inbox-list" id="client-next-actions-list"></div>
+          </section>
+
+          <section class="clients-list-section">
+            <div class="clients-section-head">
+              <h3><i class="ri-building-2-line"></i> 거래처 목록</h3>
+              <span class="clients-section-count" id="client-list-count">0</span>
+            </div>
+            <div class="clients-list-table">
+              <div class="clients-list-header">
+                <span>거래처명</span>
+                <span>상태</span>
+                <span>담당</span>
+                <span>최근 접촉</span>
+                <span>다음 액션</span>
+              </div>
+              <div class="clients-list" id="clients-list"></div>
+            </div>
+          </section>
+        </aside>
+
+        <section class="clients-detail">
+          <div class="clients-detail-empty" id="clients-detail-empty">
+            <i class="ri-building-2-line"></i>
+            <h3>거래처를 선택하세요</h3>
+            <p>다음 액션, 담당자, 메모, 타임라인을 한 화면에서 관리합니다.</p>
+          </div>
+
+          <div class="clients-detail-body hidden" id="clients-detail-body">
+            <div class="clients-detail-header">
+              <div>
+                <span class="clients-detail-status-badge" id="client-detail-status-badge"></span>
+                <h2 id="client-detail-name"></h2>
+                <p id="client-detail-subtitle"></p>
+              </div>
+              <div class="clients-detail-actions">
+                <button class="btn btn-outline btn-sm" id="btn-client-create-event"><i class="ri-calendar-event-line"></i> 일정 생성</button>
+                <button class="btn btn-danger btn-sm" id="btn-delete-client"><i class="ri-delete-bin-line"></i> 삭제</button>
+              </div>
+            </div>
+
+            <form id="client-detail-form" class="client-detail-form">
+              <div class="form-row">
+                <div class="form-col">
+                  <label class="field-label">거래처명</label>
+                  <input type="text" id="client-detail-name-input" class="select-input" required />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">상태</label>
+                  <select id="client-detail-status" class="select-input">
+                    <option value="active">진행중</option>
+                    <option value="pending">대기</option>
+                    <option value="paused">중단</option>
+                    <option value="closed">종료</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-col">
+                  <label class="field-label">담당자</label>
+                  <input type="text" id="client-detail-owner" class="select-input" placeholder="담당자 이름" />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">연락처</label>
+                  <input type="text" id="client-detail-phone" class="select-input" placeholder="전화번호" />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">이메일</label>
+                  <input type="email" id="client-detail-email" class="select-input" placeholder="이메일" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-col">
+                  <label class="field-label">최근 접촉일</label>
+                  <input type="date" id="client-detail-last-contact" class="select-input" />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">다음 액션 제목</label>
+                  <input type="text" id="client-detail-next-action-title" class="select-input" placeholder="예: 계약서 검토 전화" />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">다음 액션 예정일</label>
+                  <input type="date" id="client-detail-next-action-at" class="select-input" />
+                </div>
+              </div>
+              <div>
+                <label class="field-label">메모</label>
+                <textarea id="client-detail-memo" class="memo-textarea client-detail-memo" rows="5" placeholder="거래처 운영 메모"></textarea>
+              </div>
+              <div class="clients-detail-submit">
+                <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> 저장</button>
+              </div>
+            </form>
+
+            <div class="clients-summary-grid">
+              <div class="client-summary-card">
+                <span>다음 액션</span>
+                <strong id="client-detail-next-action-summary">미정</strong>
+              </div>
+              <div class="client-summary-card">
+                <span>최근 접촉</span>
+                <strong id="client-detail-last-contact-summary">기록 없음</strong>
+              </div>
+            </div>
+
+            <section class="clients-timeline-section">
+              <div class="clients-section-head">
+                <h3><i class="ri-time-line"></i> 활동 타임라인</h3>
+                <span class="clients-section-count" id="client-timeline-count">0</span>
+              </div>
+              <div class="client-timeline-list" id="client-timeline-list"></div>
+            </section>
+          </div>
+        </section>
       </div>
     </main>
 
@@ -259,6 +412,12 @@
             </select>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">거래처</label>
+            <select id="bm-client" class="select-input"><option value="">없음</option></select>
+          </div>
+        </div>
         <div class="input-group"><i class="ri-heart-pulse-line"></i><input type="url" id="bm-health" placeholder="상태 확인 URL (선택사항)" /></div>
         <div class="input-group"><i class="ri-image-line"></i><input type="url" id="bm-icon" placeholder="아이콘 URL (선택사항)" /></div>
         <div class="form-row">
@@ -352,6 +511,12 @@
           <input type="checkbox" id="evt-is-task" />
           <span>업무로 등록 (업무 목록에 표시)</span>
         </label>
+        <div class="form-row" id="evt-client-wrap">
+          <div class="form-col">
+            <label class="field-label">거래처</label>
+            <select id="evt-client" class="select-input"><option value="">없음</option></select>
+          </div>
+        </div>
         <div>
           <label class="field-label">색상</label>
           <div class="color-picker" id="evt-color-picker">
@@ -399,6 +564,12 @@
       </div>
       <form id="memo-form">
         <div class="input-group"><i class="ri-text"></i><input type="text" id="memo-title" placeholder="제목" /></div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">거래처</label>
+            <select id="memo-client" class="select-input"><option value="">없음</option></select>
+          </div>
+        </div>
         <textarea id="memo-content" class="memo-textarea" rows="8" placeholder="내용을 입력하세요..."></textarea>
         <div>
           <label class="field-label">배경색</label>
@@ -431,6 +602,67 @@
         <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="new-user-pw" placeholder="초기 비밀번호" autocomplete="new-password" required /></div>
         <div class="input-group"><i class="ri-user-heart-line"></i><input type="text" id="new-user-name" placeholder="표시 이름" required /></div>
         <div class="modal-footer"><button type="button" class="btn btn-ghost" data-modal="user-modal">취소</button><button type="submit" class="btn btn-primary">생성</button></div>
+      </form>
+    </div>
+  </div>
+  <div id="client-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="client-modal-title">거래처 추가</h3>
+        <button class="icon-btn modal-close" data-modal="client-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="client-form">
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">거래처명</label>
+            <input type="text" id="client-name" class="select-input" placeholder="거래처명" required />
+          </div>
+          <div class="form-col">
+            <label class="field-label">상태</label>
+            <select id="client-status" class="select-input">
+              <option value="active">진행중</option>
+              <option value="pending">대기</option>
+              <option value="paused">중단</option>
+              <option value="closed">종료</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">담당자</label>
+            <input type="text" id="client-owner" class="select-input" placeholder="담당자" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">연락처</label>
+            <input type="text" id="client-phone" class="select-input" placeholder="전화번호" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">이메일</label>
+            <input type="email" id="client-email" class="select-input" placeholder="이메일" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">최근 접촉일</label>
+            <input type="date" id="client-last-contact" class="select-input" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">다음 액션 제목</label>
+            <input type="text" id="client-next-action-title" class="select-input" placeholder="다음 해야 할 일" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">다음 액션 예정일</label>
+            <input type="date" id="client-next-action-at" class="select-input" />
+          </div>
+        </div>
+        <div>
+          <label class="field-label">메모</label>
+          <textarea id="client-memo" class="memo-textarea client-detail-memo" rows="5" placeholder="거래처 메모"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="client-modal">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
       </form>
     </div>
   </div>
@@ -485,6 +717,7 @@
 
   <script src="./js/auth.js"></script>
   <script src="./js/ui.js"></script>
+  <script src="./js/clients.js"></script>
   <script src="./js/calendar.js"></script>
   <script src="./js/memos.js"></script>
   <script src="./js/app.js"></script>

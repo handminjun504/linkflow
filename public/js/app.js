@@ -69,6 +69,7 @@
 
     if (tab === 'calendar') Calendar.load();
     if (tab === 'memos') Memos.load();
+    if (tab === 'clients') Clients.load({ silent: true });
   }
 
   function switchToDynTab(id) {
@@ -563,8 +564,13 @@
     else adminBtn.style.display = 'none';
 
     Calendar.init();
+    Clients.init();
     Memos.init();
     loadData();
+
+    window.addEventListener('lf:clients-changed', () => {
+      if (activeTab === 'bookmarks') renderBookmarks();
+    });
 
     if (isElectron && window.electronAPI?.listExtensions) {
       renderExtensionToolbar();
@@ -594,6 +600,7 @@
       renderCategoryTabs();
       renderBookmarks();
       checkHealthAll();
+      await Clients.load({ silent: true });
     } catch (e) {
       UI.showToast('데이터 로딩 실패: ' + e.message, 'error');
     }
@@ -636,7 +643,8 @@
       filtered = filtered.filter(b =>
         b.title.toLowerCase().includes(search) ||
         (b.description || '').toLowerCase().includes(search) ||
-        b.url.toLowerCase().includes(search)
+        b.url.toLowerCase().includes(search) ||
+        (Clients.getClientName(b.client_id) || '').toLowerCase().includes(search)
       );
     }
 
@@ -644,7 +652,8 @@
     if (search) {
       sharedFiltered = sharedFiltered.filter(b =>
         b.title.toLowerCase().includes(search) ||
-        (b.description || '').toLowerCase().includes(search)
+        (b.description || '').toLowerCase().includes(search) ||
+        (Clients.getClientName(b.client_id) || '').toLowerCase().includes(search)
       );
     }
 
@@ -760,6 +769,7 @@
     }
 
     const catName = b.categories?.name ? `${b.categories.icon || ''} ${b.categories.name}` : '';
+    const clientName = Clients.getClientName(b.client_id);
 
     return `
       <div class="bookmark-card" data-id="${b.id}" draggable="${isShared ? 'false' : 'true'}">
@@ -778,6 +788,7 @@
         </div>
         <div class="bookmark-meta">
           <span class="bookmark-type-badge">${catName || typeInfo.label}</span>
+          ${clientName ? `<span class="bookmark-client-badge">${escapeHtml(clientName)}</span>` : ''}
           <span class="bookmark-status ${statusClass}" title="${health || '확인 안됨'}"></span>
         </div>
       </div>`;
@@ -823,6 +834,8 @@
     else sharedWrap.classList.add('hidden');
     document.getElementById('bm-shared').checked = false;
     populateCategorySelect();
+    populateClientSelect();
+    document.getElementById('bm-client').value = '';
     UI.openModal('bookmark-modal');
   }
 
@@ -844,6 +857,8 @@
     else sharedWrap.classList.add('hidden');
     document.getElementById('bm-shared').checked = bm.is_shared || false;
     populateCategorySelect(bm.category_id);
+    populateClientSelect(bm.client_id || '');
+    document.getElementById('bm-client').value = bm.client_id || '';
     UI.openModal('bookmark-modal');
   }
 
@@ -855,6 +870,10 @@
     });
   }
 
+  function populateClientSelect(selected = '') {
+    Clients.populateSelect('bm-client', selected);
+  }
+
   async function saveBookmark(e) {
     e.preventDefault();
     const id = document.getElementById('bm-edit-id').value;
@@ -863,6 +882,7 @@
       url: document.getElementById('bm-url').value.trim(),
       description: document.getElementById('bm-desc').value.trim(),
       category_id: document.getElementById('bm-category').value || null,
+      client_id: document.getElementById('bm-client').value || null,
       service_type: document.getElementById('bm-type').value,
       health_check_url: document.getElementById('bm-health').value.trim() || null,
       icon_url: document.getElementById('bm-icon').value.trim() || null,
@@ -1327,6 +1347,8 @@
     else sharedWrap.classList.add('hidden');
     document.getElementById('bm-shared').checked = false;
     populateCategorySelect();
+    populateClientSelect();
+    document.getElementById('bm-client').value = '';
     UI.openModal('bookmark-modal');
   };
 
@@ -1423,6 +1445,28 @@
           items.push({ type: 'bookmark', icon: 'ri-bookmark-line', label: b.title, sub: b.url, action: () => { openInBrowser(b); window.__closeCommandPalette(); }});
         }
       });
+      Clients.getAll().forEach(client => {
+        const keywords = [
+          client.name,
+          client.owner_name,
+          client.next_action_title,
+          client.memo,
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!q || keywords.includes(q)) {
+          items.push({
+            type: 'client',
+            icon: 'ri-building-2-line',
+            label: client.name,
+            sub: client.next_action_title || client.owner_name || client.status || '',
+            action: async () => {
+              switchTab('clients');
+              await Clients.load({ silent: true });
+              Clients.selectClient(client.id);
+              window.__closeCommandPalette();
+            },
+          });
+        }
+      });
       const actions = [
         { label: '새 탭 열기', icon: 'ri-add-line', action: () => { createDynTab('https://www.google.com', 'Google'); window.__closeCommandPalette(); }},
         { label: '설정 열기', icon: 'ri-settings-3-line', action: () => { openSettings(); window.__closeCommandPalette(); }},
@@ -1438,7 +1482,7 @@
       <div class="cmd-result-item ${i === 0 ? 'active' : ''}" data-idx="${i}">
         <i class="${it.icon} cmd-result-icon"></i>
         <div class="cmd-result-text"><div class="cmd-result-label">${escapeHtml(it.label)}</div>${it.sub ? `<div class="cmd-result-sub">${escapeHtml(it.sub.slice(0, 60))}</div>` : ''}</div>
-        <span class="cmd-result-type">${it.type === 'tab' ? '탭' : it.type === 'bookmark' ? '북마크' : '액션'}</span>
+        <span class="cmd-result-type">${it.type === 'tab' ? '탭' : it.type === 'bookmark' ? '북마크' : it.type === 'client' ? '거래처' : '액션'}</span>
       </div>
     `).join('') || '<div class="cmd-result-empty">결과 없음</div>';
     results.querySelectorAll('.cmd-result-item').forEach((el, i) => {

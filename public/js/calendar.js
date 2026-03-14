@@ -24,6 +24,24 @@ const Calendar = (() => {
     { cls: 'task-day-sat', label: '토' },
   ];
 
+  function populateClientOptions(selected = '') {
+    const wrap = document.getElementById('evt-client-wrap');
+    const select = document.getElementById('evt-client');
+    if (!wrap || !select) return;
+    const clientItems = Clients?.getAll?.() || [];
+    if (!clientItems.length) {
+      wrap.style.display = 'none';
+      select.innerHTML = '<option value="">없음</option>';
+      return;
+    }
+    wrap.style.display = '';
+    Clients.populateSelect(select, selected);
+  }
+
+  function getClientName(clientId) {
+    return Clients?.getClientName?.(clientId) || '';
+  }
+
   function init() {
     const now = new Date();
     currentYear = now.getFullYear();
@@ -55,6 +73,14 @@ const Calendar = (() => {
     });
 
     requestNotificationPermission();
+    populateClientOptions();
+    window.addEventListener('lf:clients-changed', () => {
+      populateClientOptions(document.getElementById('evt-client')?.value || '');
+      if (document.getElementById('tab-calendar')?.classList.contains('active')) {
+        render();
+        renderTaskSidebar();
+      }
+    });
   }
 
   async function loadHolidays(year) {
@@ -155,8 +181,9 @@ const Calendar = (() => {
           const time = ev.start_time ? ev.start_time.substring(0, 5) + ' ' : '';
           const recurIcon = ev._recurring || ev.recurrence_type ? '<i class="ri-repeat-line" style="font-size:9px;margin-right:2px"></i>' : '';
           const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
+          const clientName = getClientName(ev.client_id);
           const doneClass = ev.is_done ? ' cal-event-done' : '';
-          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${time}${ev.title}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}</div>`;
+          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${time}${ev.title}${clientName ? ` · ${clientName}` : ''}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>`;
         });
         if (dayEvents.length > 3) {
           html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
@@ -221,11 +248,13 @@ const Calendar = (() => {
         const doneClass = t.is_done ? ' task-done' : '';
         const time = t.start_time ? t.start_time.substring(0, 5) : '';
         const note = (t.description || '').trim();
+        const clientName = getClientName(t.client_id);
         html += `<div class="task-item${doneClass}">
           <input type="checkbox" class="task-check" data-id="${t.id}" ${checked} />
           <div class="task-item-body">
             <span class="task-item-title">${escapeHtml(t.title)}</span>
             ${time ? `<span class="task-item-time">${time}</span>` : ''}
+            ${clientName ? `<span class="task-item-time">거래처 · ${escapeHtml(clientName)}</span>` : ''}
             ${note ? `<span class="task-item-note">${escapeHtml(note)}</span>` : ''}
           </div>
           <span class="task-color-dot" style="background:${t.color || DEFAULT_EVENT_COLOR}"></span>
@@ -252,6 +281,7 @@ const Calendar = (() => {
   // ── Event Modal ──
 
   function openAddEvent(dateStr) {
+    populateClientOptions();
     document.getElementById('event-modal-title').textContent = '일정 추가';
     document.getElementById('evt-submit-btn').textContent = '추가';
     document.getElementById('evt-delete-btn').classList.add('hidden');
@@ -264,6 +294,7 @@ const Calendar = (() => {
     document.getElementById('evt-skip-weekend-wrap').style.display = 'none';
     document.getElementById('evt-skip-weekend').checked = true;
     document.getElementById('evt-recurrence-day').value = '';
+    document.getElementById('evt-client').value = '';
     resetColorPicker('evt-color-picker', DEFAULT_EVENT_COLOR);
     UI.openModal('event-modal');
   }
@@ -310,6 +341,7 @@ const Calendar = (() => {
     listEl.innerHTML = dayEvents.map(ev => {
       const time = ev.start_time ? ev.start_time.substring(0, 5) : '종일';
       const note = (ev.description || '').trim();
+      const clientName = getClientName(ev.client_id);
       const doneClass = ev.is_done ? ' day-event-done' : '';
       return `<button type="button" class="day-event-item${doneClass}" data-id="${ev.id}">
         <span class="day-event-color" style="background:${ev.color || DEFAULT_EVENT_COLOR}"></span>
@@ -318,6 +350,7 @@ const Calendar = (() => {
             <span class="day-event-time">${time}</span>
             <span class="day-event-title">${escapeHtml(ev.title)}</span>
           </div>
+          ${clientName ? `<div class="day-event-note">거래처 · ${escapeHtml(clientName)}</div>` : ''}
           ${note ? `<div class="day-event-note">${escapeHtml(note)}</div>` : ''}
         </div>
         <i class="ri-arrow-right-s-line"></i>
@@ -337,6 +370,7 @@ const Calendar = (() => {
   function openEditEvent(id) {
     const ev = events.find(e => e.id === id);
     if (!ev) return;
+    populateClientOptions(ev.client_id || '');
     document.getElementById('event-modal-title').textContent = '일정 수정';
     document.getElementById('evt-submit-btn').textContent = '저장';
     document.getElementById('evt-delete-btn').classList.remove('hidden');
@@ -357,6 +391,7 @@ const Calendar = (() => {
     document.getElementById('evt-recurrence-day').value = isMonthly ? (ev.recurrence_day || new Date(ev.start_date + 'T00:00:00').getDate()) : '';
     document.getElementById('evt-skip-weekend').checked = ev.skip_weekend || false;
     document.getElementById('evt-is-task').checked = ev.is_task || false;
+    document.getElementById('evt-client').value = ev.client_id || '';
     document.getElementById('evt-color').value = ev.color || DEFAULT_EVENT_COLOR;
     resetColorPicker('evt-color-picker', ev.color || DEFAULT_EVENT_COLOR);
     UI.openModal('event-modal');
@@ -405,6 +440,7 @@ const Calendar = (() => {
       recurrence_day: recurrenceDay,
       is_task: document.getElementById('evt-is-task').checked,
       skip_weekend: recurrence ? document.getElementById('evt-skip-weekend').checked : false,
+      client_id: document.getElementById('evt-client').value || null,
     };
 
     try {
@@ -477,5 +513,16 @@ const Calendar = (() => {
     return d.innerHTML;
   }
 
-  return { init, load, openAddEvent };
+  function openPrefilledEvent(prefill = {}) {
+    openAddEvent(prefill.date || getTodayDateStr());
+    document.getElementById('evt-title').value = prefill.title || '';
+    document.getElementById('evt-desc').value = prefill.description || '';
+    document.getElementById('evt-is-task').checked = !!prefill.isTask;
+    if (prefill.clientId) {
+      populateClientOptions(prefill.clientId);
+      document.getElementById('evt-client').value = prefill.clientId;
+    }
+  }
+
+  return { init, load, openAddEvent, openPrefilledEvent };
 })();
