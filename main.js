@@ -3,8 +3,10 @@ const { autoUpdater } = require('electron-updater');
 const { spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
-const APP_URL = process.env.LINKFLOW_APP_URL || 'https://cdn.jsdelivr.net/gh/handminjun504/linkflow@e12ca4e/public/index.html';
+const APP_URL = process.env.LINKFLOW_APP_URL
+  || pathToFileURL(path.join(__dirname, 'public', 'index.html')).toString();
 const RELEASES_URL = 'https://github.com/handminjun504/linkflow/releases/latest';
 let mainWindow = null;
 let tray = null;

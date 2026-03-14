@@ -1,6 +1,6 @@
 {
   "name": "linkflow",
-  "version": "2.6.4",
+  "version": "2.6.5",
   "description": "LinkFlow - Unified service management desktop app",
   "main": "main.js",
   "scripts": {
@@ -97,6 +97,7 @@
       "icon.png",
       "icon.ico",
       "package.json",
+      "public/**/*",
       "node_modules/electron-updater/**/*",
       "node_modules/semver/**/*",
       "node_modules/builder-util-runtime/**/*",
