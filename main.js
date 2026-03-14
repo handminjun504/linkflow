@@ -4,7 +4,7 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const APP_URL = process.env.LINKFLOW_APP_URL || 'https://raw.githack.com/handminjun504/linkflow/e12ca4e/public/index.html';
+const APP_URL = process.env.LINKFLOW_APP_URL || 'https://bookmark-one-lemon.vercel.app';
 const RELEASES_URL = 'https://github.com/handminjun504/linkflow/releases/latest';
 let mainWindow = null;
 let tray = null;
