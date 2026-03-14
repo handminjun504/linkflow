@@ -618,6 +618,35 @@ function setupWindowEvents(win) {
   };
 
   const exec = (js) => win.webContents.executeJavaScript(js).catch(() => {});
+  const navigateActive = (direction) => win.webContents.executeJavaScript(`
+    (function() {
+      var frameWrap = document.querySelector('#dynamic-tab-frames .dtf-frame-wrap');
+      if (!frameWrap) return false;
+
+      var wv = frameWrap.querySelector('webview.active');
+      if (wv) {
+        if (${JSON.stringify(direction)} === 'back' && wv.canGoBack && wv.canGoBack()) {
+          wv.goBack();
+          return true;
+        }
+        if (${JSON.stringify(direction)} === 'forward' && wv.canGoForward && wv.canGoForward()) {
+          wv.goForward();
+          return true;
+        }
+        return false;
+      }
+
+      var ifr = frameWrap.querySelector('iframe.active');
+      if (!ifr) return false;
+      try {
+        if (${JSON.stringify(direction)} === 'back') ifr.contentWindow.history.back();
+        else ifr.contentWindow.history.forward();
+        return true;
+      } catch (_err) {
+        return false;
+      }
+    })()
+  `).catch(() => false);
 
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
@@ -625,14 +654,16 @@ function setupWindowEvents(win) {
     const ctrlShift = input.control && input.shift && !input.alt;
 
     if (input.key === 'ArrowLeft' && input.alt && !input.control && !input.shift) {
-      exec(`(function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
-        if(wv&&wv.canGoBack()){wv.goBack();}})()
-      `);
+      navigateActive('back');
       event.preventDefault();
     } else if (input.key === 'ArrowRight' && input.alt && !input.control && !input.shift) {
-      exec(`(function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
-        if(wv&&wv.canGoForward()){wv.goForward();}})()
-      `);
+      navigateActive('forward');
+      event.preventDefault();
+    } else if (input.key === 'BrowserBack') {
+      navigateActive('back');
+      event.preventDefault();
+    } else if (input.key === 'BrowserForward') {
+      navigateActive('forward');
       event.preventDefault();
     } else if (input.key === 'F12') {
       win.webContents.toggleDevTools(); event.preventDefault();
@@ -687,16 +718,10 @@ function setupWindowEvents(win) {
   });
 
   const goBack = () => {
-    win.webContents.executeJavaScript(`
-      (function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
-      if(wv&&wv.canGoBack()){wv.goBack();return true;} return false; })()
-    `).then(ok => { if (!ok && win.webContents.navigationHistory) win.webContents.navigationHistory.goBack(); }).catch(() => {});
+    navigateActive('back');
   };
   const goForward = () => {
-    win.webContents.executeJavaScript(`
-      (function(){ var wv=document.querySelector('#dynamic-tab-frames webview.active');
-      if(wv&&wv.canGoForward()){wv.goForward();return true;} return false; })()
-    `).then(ok => { if (!ok && win.webContents.navigationHistory) win.webContents.navigationHistory.goForward(); }).catch(() => {});
+    navigateActive('forward');
   };
 
   if (process.platform === 'win32') {
@@ -712,9 +737,14 @@ function setupWindowEvents(win) {
     }
   }
 
-  win.on('app-command', (_e, cmd) => {
-    if (cmd === 'browser-backward') goBack();
-    else if (cmd === 'browser-forward') goForward();
+  win.on('app-command', (event, cmd) => {
+    if (cmd === 'browser-backward') {
+      event.preventDefault?.();
+      goBack();
+    } else if (cmd === 'browser-forward') {
+      event.preventDefault?.();
+      goForward();
+    }
   });
 }
 
@@ -954,6 +984,12 @@ app.on('web-contents-created', (_event, contents) => {
         if (contents.canGoBack()) contents.goBack();
         event.preventDefault();
       } else if (input.key === 'ArrowRight' && input.alt && !input.control && !input.shift) {
+        if (contents.canGoForward()) contents.goForward();
+        event.preventDefault();
+      } else if (input.key === 'BrowserBack') {
+        if (contents.canGoBack()) contents.goBack();
+        event.preventDefault();
+      } else if (input.key === 'BrowserForward') {
         if (contents.canGoForward()) contents.goForward();
         event.preventDefault();
       } else if (input.key === 'l' && input.alt && !input.control && !input.shift) {
