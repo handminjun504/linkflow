@@ -249,8 +249,9 @@ const Calendar = (() => {
         const time = t.start_time ? t.start_time.substring(0, 5) : '';
         const note = (t.description || '').trim();
         const clientName = getClientName(t.client_id);
+        const dateAttr = (t._recurring || t.recurrence_type) ? ` data-date="${t.start_date}"` : '';
         html += `<div class="task-item${doneClass}">
-          <input type="checkbox" class="task-check" data-id="${t.id}" ${checked} />
+          <input type="checkbox" class="task-check" data-id="${t.id}"${dateAttr} ${checked} />
           <div class="task-item-body">
             <span class="task-item-title">${escapeHtml(t.title)}</span>
             ${time ? `<span class="task-item-time">${time}</span>` : ''}
@@ -267,12 +268,21 @@ const Calendar = (() => {
 
     container.querySelectorAll('.task-check').forEach(cb => {
       cb.addEventListener('change', async () => {
+        const nextDone = cb.checked;
+        cb.disabled = true;
         try {
-          await Auth.request(`/events/${cb.dataset.id}/done`, { method: 'PATCH' });
-          loadWeekTasks();
-          load();
+          const targetDate = cb.dataset.date || '';
+          const qs = targetDate ? `?target_date=${encodeURIComponent(targetDate)}` : '';
+          await Auth.request(`/events/${cb.dataset.id}/done${qs}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ is_done: nextDone }),
+          });
+          await Promise.all([loadWeekTasks(), load()]);
         } catch (err) {
+          cb.checked = !nextDone;
           UI.showToast(err.message, 'error');
+        } finally {
+          cb.disabled = false;
         }
       });
     });
