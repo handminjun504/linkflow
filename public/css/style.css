@@ -759,58 +759,29 @@ textarea.select-input {
   border-bottom: 1px solid var(--border);
 }
 
-.clients-filter-pills {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.client-filter-pill {
+.clients-sync-card {
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clients-sync-card strong {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.clients-sync-card strong.is-error {
+  color: #b73c2f;
+}
+
+.clients-sync-card p {
+  margin: 0;
+  font-size: 12px;
   color: var(--text-light);
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.client-filter-pill:hover {
-  border-color: var(--primary-light);
-  color: var(--primary);
-}
-
-.client-filter-pill.active {
-  background: var(--primary);
-  color: var(--white);
-  border-color: var(--primary);
-}
-
-.clients-toolbar-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-}
-
-.clients-custom-view-wrap {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.client-custom-view {
-  border: 1px dashed var(--primary-light);
-  background: var(--primary-bg);
-  color: var(--primary-dark);
-  border-radius: 12px;
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .clients-search-box {
@@ -842,7 +813,6 @@ textarea.select-input {
   background: var(--white);
 }
 
-.clients-inbox-card,
 .clients-list-section {
   padding: 18px 22px 0;
 }
@@ -983,7 +953,7 @@ textarea.select-input {
 .clients-list-header,
 .client-list-row {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) 110px 110px 110px 110px;
+  grid-template-columns: minmax(180px, 2.3fr) 110px 140px 130px minmax(150px, 1.2fr);
   gap: 12px;
   align-items: center;
 }
@@ -996,17 +966,31 @@ textarea.select-input {
   font-weight: 700;
 }
 
+.clients-list-header span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .clients-list {
   overflow-y: auto;
   min-height: 0;
 }
 
 .client-list-row {
+  width: 100%;
   padding: 14px;
   border-top: 1px solid var(--border);
   cursor: pointer;
   transition: all var(--transition);
   color: var(--text);
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
 }
 
 .client-list-row:hover {
@@ -1015,14 +999,6 @@ textarea.select-input {
 
 .client-list-row.active {
   background: rgba(77, 168, 218, 0.12);
-}
-
-.client-list-row.dragging {
-  opacity: 0.45;
-}
-
-.client-list-row.drag-over {
-  box-shadow: inset 0 0 0 2px var(--primary-light);
 }
 
 .client-cell {
@@ -1040,6 +1016,7 @@ textarea.select-input {
   gap: 3px;
   overflow: hidden;
   color: var(--text);
+  min-width: 0;
 }
 
 .client-cell-name strong,
@@ -1155,15 +1132,30 @@ textarea.select-input {
   flex-wrap: wrap;
 }
 
+.client-readonly-input,
+.client-readonly-textarea {
+  background: #f8fafc;
+  color: var(--text);
+}
+
+.client-readonly-input[readonly],
+.client-readonly-textarea[readonly] {
+  cursor: default;
+}
+
 .client-detail-memo {
   margin-bottom: 0;
   min-height: 120px;
 }
 
-.clients-detail-submit {
+.client-password-field {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.client-password-field .select-input {
+  flex: 1;
 }
 
 .clients-summary-grid {
@@ -1193,12 +1185,27 @@ textarea.select-input {
   color: var(--text);
 }
 
+.clients-summary-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.clients-extra-section,
 .clients-shortcuts-section {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 18px;
   background: var(--white);
   margin-bottom: 18px;
+}
+
+.clients-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.client-extra-field {
+  min-width: 0;
 }
 
 .client-shortcuts-toolbar {
@@ -1704,7 +1711,7 @@ textarea.select-input {
   }
   .clients-list-header,
   .client-list-row {
-    grid-template-columns: minmax(0, 1.4fr) 100px 100px;
+    grid-template-columns: minmax(0, 1.5fr) 96px 112px;
   }
   .clients-list-header span:nth-child(4),
   .clients-list-header span:nth-child(5),
@@ -1715,12 +1722,14 @@ textarea.select-input {
   .clients-detail {
     padding: 18px;
   }
-  .clients-detail-header,
-  .clients-toolbar-actions {
+  .clients-detail-header {
     flex-direction: column;
     align-items: stretch;
   }
   .clients-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .clients-extra-grid {
     grid-template-columns: 1fr;
   }
   .client-shortcuts-toolbar,
@@ -1730,6 +1739,9 @@ textarea.select-input {
   }
   .client-shortcut-actions {
     justify-content: flex-start;
+  }
+  .client-password-field {
+    flex-direction: column;
   }
 }
 

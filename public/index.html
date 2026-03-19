@@ -113,34 +113,20 @@
               <p class="clients-kicker">업무 운영</p>
               <h2>거래처</h2>
             </div>
-            <button class="btn btn-primary btn-sm" id="btn-add-client"><i class="ri-add-line"></i> 추가</button>
+            <button class="btn btn-outline btn-sm" id="btn-sync-clients"><i class="ri-refresh-line"></i> 시트 동기화</button>
           </div>
 
           <div class="clients-toolbar-row">
-            <div class="clients-filter-pills" id="client-filter-pills"></div>
-            <div class="clients-toolbar-actions">
-              <button class="btn btn-outline btn-sm" id="btn-save-client-view"><i class="ri-bookmark-line"></i> 현재 보기 저장</button>
-              <button class="btn btn-ghost btn-sm" id="btn-reset-client-filters"><i class="ri-refresh-line"></i> 초기화</button>
-              <button class="btn btn-ghost btn-sm" id="btn-export-clients-csv"><i class="ri-file-download-line"></i> CSV</button>
-            </div>
-            <div class="clients-custom-view-wrap hidden" id="client-custom-view-wrap">
-              <button class="client-custom-view" id="btn-load-client-custom-view"></button>
-              <button class="icon-btn" id="btn-clear-client-custom-view" title="저장 뷰 삭제"><i class="ri-close-line"></i></button>
+            <div class="clients-sync-card">
+              <strong id="client-sync-status">아직 동기화 기록이 없습니다</strong>
+              <p id="client-sync-source">Google Sheet 읽기 전용</p>
             </div>
           </div>
 
           <div class="clients-search-box">
             <i class="ri-search-line"></i>
-            <input type="text" id="clients-search-input" placeholder="거래처, 경리팀 담당, 기업 담당, 메모 검색" />
+            <input type="text" id="clients-search-input" placeholder="거래처명, 코드, 담당자, 메모 검색" />
           </div>
-
-          <section class="clients-inbox-card">
-            <div class="clients-section-head">
-              <h3><i class="ri-inbox-archive-line"></i> 다음 액션 Inbox</h3>
-              <span class="clients-section-count" id="client-inbox-count">0</span>
-            </div>
-            <div class="clients-inbox-list" id="client-next-actions-list"></div>
-          </section>
 
           <section class="clients-list-section">
             <div class="clients-section-head">
@@ -150,10 +136,10 @@
             <div class="clients-list-table">
               <div class="clients-list-header">
                 <span>거래처명</span>
-                <span>상태</span>
                 <span>경리팀 담당</span>
-                <span>최근 접촉</span>
-                <span>다음 액션</span>
+                <span>기업 내부 담당</span>
+                <span>연락처</span>
+                <span>경리나라 아이디</span>
               </div>
               <div class="clients-list" id="clients-list"></div>
             </div>
@@ -164,82 +150,96 @@
           <div class="clients-detail-empty" id="clients-detail-empty">
             <i class="ri-building-2-line"></i>
             <h3>거래처를 선택하세요</h3>
-            <p>다음 액션, 경리팀 담당, 기업 담당, 메모, 타임라인을 한 화면에서 관리합니다.</p>
+            <p>Google Sheet에서 동기화된 거래처 정보와 연결된 바로가기, 타임라인을 확인할 수 있습니다.</p>
           </div>
 
           <div class="clients-detail-body hidden" id="clients-detail-body">
             <div class="clients-detail-header">
               <div>
-                <span class="clients-detail-status-badge" id="client-detail-status-badge"></span>
                 <h2 id="client-detail-name"></h2>
                 <p id="client-detail-subtitle"></p>
               </div>
               <div class="clients-detail-actions">
                 <button class="btn btn-outline btn-sm" id="btn-client-create-event"><i class="ri-calendar-event-line"></i> 일정 생성</button>
-                <button class="btn btn-danger btn-sm" id="btn-delete-client"><i class="ri-delete-bin-line"></i> 삭제</button>
+                <button class="btn btn-danger btn-sm" id="btn-hide-client"><i class="ri-eye-off-line"></i> 종료 처리</button>
               </div>
             </div>
 
-            <form id="client-detail-form" class="client-detail-form">
+            <div class="client-detail-form">
               <div class="form-row">
                 <div class="form-col">
                   <label class="field-label">거래처명</label>
-                  <input type="text" id="client-detail-name-input" class="select-input" required />
-                </div>
-                <div class="form-col">
-                  <label class="field-label">상태</label>
-                  <select id="client-detail-status" class="select-input">
-                    <option value="active">진행중</option>
-                    <option value="pending">대기</option>
-                    <option value="paused">중단</option>
-                    <option value="closed">종료</option>
-                  </select>
+                  <input type="text" id="client-detail-name-input" class="select-input client-readonly-input" readonly />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-col">
                   <label class="field-label">경리팀 담당자</label>
-                  <input type="text" id="client-detail-owner" class="select-input" placeholder="예: 조희경" />
+                  <input type="text" id="client-detail-owner" class="select-input client-readonly-input" readonly />
                 </div>
                 <div class="form-col">
                   <label class="field-label">기업 내부 담당자</label>
-                  <input type="text" id="client-detail-company-contact" class="select-input" placeholder="회사 쪽 담당자 이름" />
+                  <input type="text" id="client-detail-company-contact" class="select-input client-readonly-input" readonly />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-col">
                   <label class="field-label">기업 담당 연락처</label>
-                  <input type="text" id="client-detail-phone" class="select-input" placeholder="전화번호" />
+                  <input type="text" id="client-detail-phone" class="select-input client-readonly-input" readonly />
                 </div>
                 <div class="form-col">
                   <label class="field-label">기업 담당 이메일</label>
-                  <input type="email" id="client-detail-email" class="select-input" placeholder="이메일" />
+                  <input type="email" id="client-detail-email" class="select-input client-readonly-input" readonly />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-col">
                   <label class="field-label">최근 접촉일</label>
-                  <input type="date" id="client-detail-last-contact" class="select-input" />
+                  <input type="text" id="client-detail-last-contact" class="select-input client-readonly-input" readonly />
                 </div>
                 <div class="form-col">
                   <label class="field-label">다음 액션 제목</label>
-                  <input type="text" id="client-detail-next-action-title" class="select-input" placeholder="예: 계약서 검토 전화" />
+                  <input type="text" id="client-detail-next-action-title" class="select-input client-readonly-input" readonly />
                 </div>
                 <div class="form-col">
                   <label class="field-label">다음 액션 예정일</label>
-                  <input type="date" id="client-detail-next-action-at" class="select-input" />
+                  <input type="text" id="client-detail-next-action-at" class="select-input client-readonly-input" readonly />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-col">
+                  <label class="field-label">코드</label>
+                  <input type="text" id="client-detail-client-code" class="select-input client-readonly-input" readonly />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">사업자번호</label>
+                  <input type="text" id="client-detail-business-number" class="select-input client-readonly-input" readonly />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">대표</label>
+                  <input type="text" id="client-detail-ceo-name" class="select-input client-readonly-input" readonly />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-col">
+                  <label class="field-label">경리나라 아이디</label>
+                  <input type="text" id="client-detail-gyeongli-id" class="select-input client-readonly-input" readonly />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">경리나라 비밀번호</label>
+                  <div class="client-password-field">
+                    <input type="password" id="client-detail-gyeongli-password" class="select-input client-readonly-input" readonly />
+                    <button type="button" class="btn btn-ghost btn-sm" id="btn-client-password-toggle">보기</button>
+                  </div>
                 </div>
               </div>
               <div>
                 <label class="field-label">메모</label>
-                <textarea id="client-detail-memo" class="memo-textarea client-detail-memo" rows="5" placeholder="거래처 운영 메모"></textarea>
+                <textarea id="client-detail-memo" class="memo-textarea client-detail-memo client-readonly-textarea" rows="5" readonly></textarea>
               </div>
-              <div class="clients-detail-submit">
-                <button type="submit" class="btn btn-primary"><i class="ri-save-line"></i> 저장</button>
-              </div>
-            </form>
+            </div>
 
-            <div class="clients-summary-grid">
+            <div class="clients-summary-grid clients-summary-grid-3">
               <div class="client-summary-card">
                 <span>다음 액션</span>
                 <strong id="client-detail-next-action-summary">미정</strong>
@@ -248,7 +248,18 @@
                 <span>최근 접촉</span>
                 <strong id="client-detail-last-contact-summary">기록 없음</strong>
               </div>
+              <div class="client-summary-card">
+                <span>동기화 원본</span>
+                <strong id="client-detail-source-summary">Google Sheet</strong>
+              </div>
             </div>
+
+            <section class="clients-extra-section hidden" id="client-extra-fields-section">
+              <div class="clients-section-head">
+                <h3><i class="ri-file-list-3-line"></i> 추가 정보</h3>
+              </div>
+              <div class="clients-extra-grid" id="client-extra-fields"></div>
+            </section>
 
             <section class="clients-shortcuts-section">
               <div class="clients-section-head">

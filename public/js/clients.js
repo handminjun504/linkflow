@@ -1,31 +1,6 @@
 const Clients = (() => {
-  const FILTERS = [
-    { id: 'all', label: '전체' },
-    { id: 'active', label: '진행중' },
-    { id: 'pending', label: '대기' },
-    { id: 'paused', label: '중단' },
-    { id: 'closed', label: '종료' },
-    { id: 'due_today', label: '오늘 처리' },
-    { id: 'overdue', label: '후속조치 지연' },
-  ];
-
-  const CLIENTS_TTL = 60 * 1000;
-  const STATUS_LABELS = {
-    active: '진행중',
-    pending: '대기',
-    paused: '중단',
-    closed: '종료',
-  };
-  const INTERNAL_ASSIGNEES = new Set([
-    '조희경',
-    '김나리',
-    '금종석',
-    '김윤주',
-    '김동건',
-    '조은',
-    '김재우',
-    '김유경',
-  ]);
+  const CLIENTS_CACHE_TTL = 60 * 1000;
+  const CLIENT_SYNC_TTL = 5 * 60 * 1000;
   const TIMELINE_ICONS = {
     bookmark: 'ri-bookmark-3-line',
     memo: 'ri-sticky-note-line',
@@ -35,48 +10,48 @@ const Clients = (() => {
   let initialized = false;
   let clients = [];
   let searchQuery = '';
-  let filterId = 'all';
   let selectedClientId = null;
   let selectedClient = null;
   let timelineItems = [];
   let bookmarkItems = [];
-  let dragClientId = null;
-  let customView = null;
   let clientsLoadedAt = 0;
+  let lastSyncAttemptAt = 0;
   let clientsLoadPromise = null;
+  let syncPromise = null;
   let persistStateTimer = null;
+  let revealPassword = false;
+  let schemaMeta = {
+    fixed_fields: [],
+    extra_fields: [],
+    last_synced_at: null,
+    last_error: null,
+    sheet_title: null,
+    sheet_range: null,
+  };
 
   function init() {
     if (initialized) return;
     initialized = true;
 
     restoreState();
-    customView = Preferences?.getClientCustomView?.() || null;
-    renderFilterPills();
-    renderCustomView();
 
-    document.getElementById('btn-add-client')?.addEventListener('click', openCreateModal);
-    document.getElementById('client-form')?.addEventListener('submit', createClient);
-    document.getElementById('client-detail-form')?.addEventListener('submit', saveSelectedClient);
-    document.getElementById('btn-delete-client')?.addEventListener('click', deleteSelectedClient);
+    document.getElementById('btn-sync-clients')?.addEventListener('click', manualSync);
     document.getElementById('btn-client-create-event')?.addEventListener('click', () => {
       if (selectedClientId) openActionEvent(selectedClientId);
     });
-    document.getElementById('btn-save-client-view')?.addEventListener('click', saveCurrentView);
-    document.getElementById('btn-reset-client-filters')?.addEventListener('click', resetFilters);
-    document.getElementById('btn-export-clients-csv')?.addEventListener('click', exportCsv);
-    document.getElementById('btn-load-client-custom-view')?.addEventListener('click', applyCustomView);
-    document.getElementById('btn-clear-client-custom-view')?.addEventListener('click', clearCustomView);
+    document.getElementById('btn-hide-client')?.addEventListener('click', hideSelectedClient);
     document.getElementById('btn-link-client-shortcut')?.addEventListener('click', linkSelectedShortcut);
+    document.getElementById('client-shortcuts-list')?.addEventListener('click', handleShortcutAction);
     document.getElementById('clients-search-input')?.addEventListener('input', event => {
       searchQuery = event.target.value.trim();
       persistState();
-      render();
+      renderList();
     });
-    document.getElementById('client-next-actions-list')?.addEventListener('click', handleInboxClick);
-    document.getElementById('client-shortcuts-list')?.addEventListener('click', handleShortcutAction);
+    document.getElementById('btn-client-password-toggle')?.addEventListener('click', togglePasswordVisibility);
 
-    document.addEventListener('lf:clients-changed-request', () => load());
+    document.addEventListener('lf:clients-changed-request', () => {
+      void load({ force: true, silent: true });
+    });
     window.addEventListener('lf:bookmarks-changed', event => {
       bookmarkItems = Array.isArray(event.detail?.bookmarks)
         ? event.detail.bookmarks.map(normalizeBookmark)
@@ -91,16 +66,14 @@ const Clients = (() => {
 
   async function load(options = {}) {
     if (!Auth.isLoggedIn()) {
-      clients = [];
-      selectedClient = null;
-      timelineItems = [];
+      resetState();
       render();
       notifyClientsChanged();
       return [];
     }
 
     const force = !!options.force;
-    const isFresh = clients.length > 0 && (Date.now() - clientsLoadedAt) < CLIENTS_TTL;
+    const isFresh = clients.length > 0 && (Date.now() - clientsLoadedAt) < CLIENTS_CACHE_TTL;
     if (!force && isFresh) {
       ensureSelection(options.selectedClientId);
       render();
@@ -114,21 +87,37 @@ const Clients = (() => {
     if (clientsLoadPromise) return clientsLoadPromise;
 
     clientsLoadPromise = (async () => {
+      if (!options.skipSync && shouldAutoSync(force)) {
+        await runSync({ silent: options.silent });
+      }
+
       try {
-        const result = await Auth.request('/clients');
-        clients = Array.isArray(result) ? result.map(normalizeClient) : [];
+        const [rows, schema] = await Promise.all([
+          Auth.request('/clients'),
+          Auth.request('/clients/schema').catch(() => null),
+        ]);
+
+        clients = Array.isArray(rows) ? rows.map(normalizeClient) : [];
         clientsLoadedAt = Date.now();
+        if (schema && typeof schema === 'object') {
+          schemaMeta = {
+            ...schemaMeta,
+            ...schema,
+            last_error: schema.last_error || schemaMeta.last_error,
+          };
+        }
+
         ensureSelection(options.selectedClientId);
         render();
         notifyClientsChanged();
+
         if (selectedClientId) {
           await selectClient(selectedClientId, { silentList: true });
         }
+
         return clients;
       } catch (err) {
-        clients = [];
-        selectedClient = null;
-        timelineItems = [];
+        resetState();
         render();
         notifyClientsChanged();
         if (!options.silent) UI.showToast(err.message, 'error');
@@ -146,6 +135,7 @@ const Clients = (() => {
       selectedClientId = null;
       selectedClient = null;
       timelineItems = [];
+      revealPassword = false;
       renderDetail();
       renderShortcuts();
       if (!options.silentList) renderList();
@@ -153,7 +143,16 @@ const Clients = (() => {
     }
 
     selectedClientId = clientId;
+    timelineItems = [];
+    revealPassword = false;
     if (!options.silentList) renderList();
+
+    const fallback = clients.find(client => client.id === clientId) || null;
+    if (fallback) {
+      selectedClient = fallback;
+      renderDetail();
+      renderShortcuts();
+    }
 
     try {
       const [client, timeline] = await Promise.all([
@@ -167,6 +166,54 @@ const Clients = (() => {
     } catch (err) {
       UI.showToast(err.message, 'error');
     }
+  }
+
+  async function manualSync() {
+    const result = await runSync({ silent: false, manual: true });
+    if (!result) return;
+    await load({ force: true, skipSync: true, silent: false, selectedClientId });
+    UI.showToast('거래처 정보를 시트에서 다시 불러왔습니다', 'success');
+  }
+
+  async function runSync(options = {}) {
+    if (syncPromise) return syncPromise;
+    lastSyncAttemptAt = Date.now();
+
+    syncPromise = (async () => {
+      try {
+        const result = await Auth.request('/clients/sync', { method: 'POST' });
+        schemaMeta = {
+          ...schemaMeta,
+          last_synced_at: result?.last_synced_at || schemaMeta.last_synced_at,
+          last_error: null,
+          sheet_title: result?.sheet_title || schemaMeta.sheet_title,
+          sheet_range: result?.sheet_range || schemaMeta.sheet_range,
+          extra_fields: Array.isArray(result?.extra_fields)
+            ? result.extra_fields.map(field => ({ key: field, label: field }))
+            : schemaMeta.extra_fields,
+        };
+        renderSyncState();
+        return result;
+      } catch (err) {
+        schemaMeta = {
+          ...schemaMeta,
+          last_error: err.message,
+        };
+        renderSyncState();
+        if (!options.silent) UI.showToast(err.message, 'error');
+        return null;
+      } finally {
+        syncPromise = null;
+      }
+    })();
+
+    return syncPromise;
+  }
+
+  function shouldAutoSync(force) {
+    if (force) return true;
+    if (!lastSyncAttemptAt) return true;
+    return (Date.now() - lastSyncAttemptAt) > CLIENT_SYNC_TTL;
   }
 
   function ensureSelection(forcedId = null) {
@@ -184,73 +231,45 @@ const Clients = (() => {
     selectedClientId = clients[0].id;
   }
 
+  function resetState() {
+    clients = [];
+    selectedClientId = null;
+    selectedClient = null;
+    timelineItems = [];
+    revealPassword = false;
+  }
+
   function render() {
-    renderFilterPills();
-    renderCustomView();
-    renderInbox();
+    renderSyncState();
     renderList();
     renderDetail();
     renderShortcuts();
   }
 
-  function renderFilterPills() {
-    const container = document.getElementById('client-filter-pills');
-    if (!container) return;
-    container.innerHTML = FILTERS.map(filter => `
-      <button class="client-filter-pill ${filterId === filter.id ? 'active' : ''}" data-filter="${filter.id}">
-        ${escapeHtml(filter.label)}
-      </button>
-    `).join('');
-    container.querySelectorAll('.client-filter-pill').forEach(button => {
-      button.addEventListener('click', () => {
-        filterId = button.dataset.filter;
-        persistState();
-        render();
-      });
-    });
-  }
+  function renderSyncState() {
+    const status = document.getElementById('client-sync-status');
+    const source = document.getElementById('client-sync-source');
+    const button = document.getElementById('btn-sync-clients');
+    if (!status || !source || !button) return;
 
-  function renderCustomView() {
-    const wrap = document.getElementById('client-custom-view-wrap');
-    const button = document.getElementById('btn-load-client-custom-view');
-    if (!wrap || !button) return;
-    if (!customView) {
-      wrap.classList.add('hidden');
-      return;
-    }
-    button.textContent = customView.label || '저장 뷰 적용';
-    wrap.classList.remove('hidden');
-  }
+    const lastSyncedText = schemaMeta.last_synced_at
+      ? `마지막 동기화 ${formatDateTime(schemaMeta.last_synced_at)}`
+      : '아직 동기화 기록이 없습니다';
 
-  function renderInbox() {
-    const list = document.getElementById('client-next-actions-list');
-    const count = document.getElementById('client-inbox-count');
-    if (!list || !count) return;
+    status.textContent = schemaMeta.last_error
+      ? `동기화 오류: ${schemaMeta.last_error}`
+      : lastSyncedText;
+    status.classList.toggle('is-error', Boolean(schemaMeta.last_error));
 
-    const items = getInboxClients();
-    count.textContent = String(items.length);
+    const parts = ['Google Sheet 읽기 전용'];
+    if (schemaMeta.sheet_title) parts.push(schemaMeta.sheet_title);
+    if (schemaMeta.sheet_range) parts.push(schemaMeta.sheet_range);
+    source.textContent = parts.join(' · ');
 
-    if (!items.length) {
-      list.innerHTML = '<div class="client-inbox-empty"><i class="ri-checkbox-circle-line"></i><p>오늘 처리할 다음 액션이 없습니다</p></div>';
-      return;
-    }
-
-    list.innerHTML = items.map(client => {
-      const overdue = isOverdue(client.next_action_at);
-      return `
-        <div class="client-inbox-item" data-id="${escapeAttr(client.id)}">
-          <div class="client-inbox-body">
-            <span class="client-inbox-status ${overdue ? 'overdue' : 'today'}">${overdue ? '지연' : '오늘'}</span>
-            <strong>${escapeHtml(getClientDisplayName(client))}</strong>
-            <p>${escapeHtml(client.next_action_title || '다음 액션 없음')}</p>
-            <span>${formatDate(client.next_action_at)}</span>
-          </div>
-          <div class="client-inbox-actions">
-            <button class="btn btn-outline btn-sm" data-action="event" data-id="${escapeAttr(client.id)}"><i class="ri-calendar-event-line"></i> 일정</button>
-          </div>
-        </div>
-      `;
-    }).join('');
+    button.disabled = Boolean(syncPromise);
+    button.innerHTML = syncPromise
+      ? '<i class="ri-loader-4-line ri-spin"></i> 동기화 중'
+      : '<i class="ri-refresh-line"></i> 시트 동기화';
   }
 
   function renderList() {
@@ -262,52 +281,26 @@ const Clients = (() => {
     count.textContent = String(filtered.length);
 
     if (!filtered.length) {
-      list.innerHTML = '<div class="clients-list-empty"><i class="ri-building-2-line"></i><p>조건에 맞는 거래처가 없습니다</p></div>';
+      list.innerHTML = '<div class="clients-list-empty"><i class="ri-building-2-line"></i><p>표시할 거래처가 없습니다</p></div>';
       return;
     }
 
-    const canReorder = filterId === 'all' && !searchQuery;
     list.innerHTML = filtered.map(client => `
-      <div
-        class="client-list-row ${selectedClientId === client.id ? 'active' : ''}"
-        data-id="${escapeAttr(client.id)}"
-        draggable="${canReorder ? 'true' : 'false'}"
-      >
+      <button class="client-list-row ${selectedClientId === client.id ? 'active' : ''}" data-id="${escapeAttr(client.id)}" type="button">
         <span class="client-cell client-cell-name">
           <span class="client-name-text" title="${escapeAttr(getClientDisplayName(client))}">${escapeHtml(getClientDisplayName(client))}</span>
           ${buildListMeta(client) ? `<small>${escapeHtml(buildListMeta(client))}</small>` : ''}
         </span>
-        <span class="client-cell">
-          <span class="client-status-pill ${escapeAttr(client.status || 'active')}">${escapeHtml(getStatusLabel(client.status))}</span>
-        </span>
         <span class="client-cell">${escapeHtml(client.owner_name || '-')}</span>
-        <span class="client-cell">${escapeHtml(formatDate(client.last_contact_at) || '-')}</span>
-        <span class="client-cell client-cell-action">${escapeHtml(formatDate(client.next_action_at) || '-')}</span>
-      </div>
+        <span class="client-cell">${escapeHtml(client.company_contact_name || '-')}</span>
+        <span class="client-cell">${escapeHtml(formatPhoneForDisplay(client.phone) || '-')}</span>
+        <span class="client-cell">${escapeHtml(client.gyeongli_id || '-')}</span>
+      </button>
     `).join('');
 
     list.querySelectorAll('.client-list-row').forEach(row => {
-      row.addEventListener('click', () => selectClient(row.dataset.id));
-      if (!canReorder) return;
-      row.addEventListener('dragstart', () => {
-        dragClientId = row.dataset.id;
-        row.classList.add('dragging');
-      });
-      row.addEventListener('dragend', () => {
-        dragClientId = null;
-        row.classList.remove('dragging');
-        list.querySelectorAll('.drag-over').forEach(item => item.classList.remove('drag-over'));
-      });
-      row.addEventListener('dragover', event => {
-        event.preventDefault();
-        row.classList.add('drag-over');
-      });
-      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
-      row.addEventListener('drop', async event => {
-        event.preventDefault();
-        row.classList.remove('drag-over');
-        if (!dragClientId || dragClientId === row.dataset.id) return;
-        await reorderClients(dragClientId, row.dataset.id);
+      row.addEventListener('click', () => {
+        void selectClient(row.dataset.id);
       });
     });
   }
@@ -323,8 +316,7 @@ const Clients = (() => {
       return;
     }
 
-    const fallback = clients.find(client => client.id === selectedClientId) || null;
-    const client = selectedClient || fallback;
+    const client = selectedClient || clients.find(item => item.id === selectedClientId) || null;
     if (!client) {
       empty.classList.remove('hidden');
       body.classList.add('hidden');
@@ -334,30 +326,80 @@ const Clients = (() => {
     empty.classList.add('hidden');
     body.classList.remove('hidden');
 
-    document.getElementById('client-detail-name').textContent = getClientDisplayName(client);
-    document.getElementById('client-detail-status-badge').textContent = getStatusLabel(client.status);
-    document.getElementById('client-detail-status-badge').className = `clients-detail-status-badge ${client.status || 'active'}`;
-    document.getElementById('client-detail-subtitle').textContent = buildSubtitle(client);
+    setText('client-detail-name', getClientDisplayName(client));
+    setText('client-detail-subtitle', buildSubtitle(client));
+    setValue('client-detail-name-input', client.name || '');
+    setValue('client-detail-owner', client.owner_name || '');
+    setValue('client-detail-company-contact', client.company_contact_name || '');
+    setValue('client-detail-phone', formatPhoneForDisplay(client.phone) || '');
+    setValue('client-detail-email', client.email || '');
+    setValue('client-detail-last-contact', client.last_contact_at || '');
+    setValue('client-detail-next-action-title', client.next_action_title || '');
+    setValue('client-detail-next-action-at', client.next_action_at || '');
+    setValue('client-detail-client-code', client.client_code || '');
+    setValue('client-detail-business-number', client.business_number || '');
+    setValue('client-detail-ceo-name', client.ceo_name || '');
+    setValue('client-detail-gyeongli-id', client.gyeongli_id || '');
+    setValue('client-detail-memo', client.memo || '');
 
-    document.getElementById('client-detail-name-input').value = client.name || '';
-    document.getElementById('client-detail-status').value = client.status || 'active';
-    document.getElementById('client-detail-owner').value = client.owner_name || '';
-    document.getElementById('client-detail-company-contact').value = client.company_contact_name || '';
-    document.getElementById('client-detail-phone').value = client.phone || '';
-    document.getElementById('client-detail-email').value = client.email || '';
-    document.getElementById('client-detail-last-contact').value = client.last_contact_at || '';
-    document.getElementById('client-detail-next-action-title').value = client.next_action_title || '';
-    document.getElementById('client-detail-next-action-at').value = client.next_action_at || '';
-    document.getElementById('client-detail-memo').value = client.memo || '';
+    const passwordInput = document.getElementById('client-detail-gyeongli-password');
+    const passwordButton = document.getElementById('btn-client-password-toggle');
+    if (passwordInput) {
+      passwordInput.value = client.gyeongli_password || '';
+      passwordInput.type = revealPassword ? 'text' : 'password';
+    }
+    if (passwordButton) {
+      passwordButton.disabled = !client.gyeongli_password;
+      passwordButton.textContent = revealPassword ? '숨기기' : '보기';
+    }
 
-    document.getElementById('client-detail-next-action-summary').textContent =
+    setText(
+      'client-detail-next-action-summary',
       client.next_action_title
         ? `${client.next_action_title}${client.next_action_at ? ` · ${formatDate(client.next_action_at)}` : ''}`
-        : '미정';
-    document.getElementById('client-detail-last-contact-summary').textContent =
-      formatDate(client.last_contact_at) || '기록 없음';
+        : '미정'
+    );
+    setText(
+      'client-detail-last-contact-summary',
+      formatDate(client.last_contact_at) || '기록 없음'
+    );
+    setText(
+      'client-detail-source-summary',
+      schemaMeta.sheet_title
+        ? `${schemaMeta.sheet_title}${schemaMeta.sheet_range ? ` · ${schemaMeta.sheet_range}` : ''}`
+        : 'Google Sheet'
+    );
 
+    renderExtraFields(client);
     renderTimeline();
+  }
+
+  function renderExtraFields(client) {
+    const section = document.getElementById('client-extra-fields-section');
+    const list = document.getElementById('client-extra-fields');
+    if (!section || !list) return;
+
+    const extraKeys = getExtraFieldLabels(client);
+    if (!extraKeys.length) {
+      section.classList.add('hidden');
+      list.innerHTML = '';
+      return;
+    }
+
+    section.classList.remove('hidden');
+    list.innerHTML = extraKeys.map(label => {
+      const value = client.sheet_extra_fields?.[label] ?? '';
+      const multiline = String(value || '').includes('\n') || String(value || '').length > 70;
+      return `
+        <div class="client-extra-field">
+          <label class="field-label">${escapeHtml(label)}</label>
+          ${multiline
+            ? `<textarea class="memo-textarea client-readonly-textarea" rows="3" readonly>${escapeHtml(value)}</textarea>`
+            : `<input type="text" class="select-input client-readonly-input" readonly value="${escapeAttr(value)}" />`
+          }
+        </div>
+      `;
+    }).join('');
   }
 
   function renderShortcuts() {
@@ -442,125 +484,32 @@ const Clients = (() => {
     `).join('');
   }
 
-  async function createClient(event) {
-    event.preventDefault();
-    const payload = readClientForm({
-      name: 'client-name',
-      status: 'client-status',
-      owner: 'client-owner',
-      companyContact: 'client-company-contact',
-      phone: 'client-phone',
-      email: 'client-email',
-      lastContact: 'client-last-contact',
-      nextActionTitle: 'client-next-action-title',
-      nextActionAt: 'client-next-action-at',
-      memo: 'client-memo',
-    });
-    try {
-      const created = await Auth.request('/clients', {
-        method: 'POST',
-        body: JSON.stringify(toClientApiPayload(payload)),
-      });
-      clientsLoadedAt = Date.now();
-      UI.closeModal('client-modal');
-      UI.showToast('거래처가 추가되었습니다', 'success');
-      await load({ selectedClientId: created.id, force: true });
-      await selectClient(created.id);
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
-  }
-
-  async function saveSelectedClient(event) {
-    event.preventDefault();
+  async function hideSelectedClient() {
     if (!selectedClientId) return;
-    const payload = readClientForm({
-      name: 'client-detail-name-input',
-      status: 'client-detail-status',
-      owner: 'client-detail-owner',
-      companyContact: 'client-detail-company-contact',
-      phone: 'client-detail-phone',
-      email: 'client-detail-email',
-      lastContact: 'client-detail-last-contact',
-      nextActionTitle: 'client-detail-next-action-title',
-      nextActionAt: 'client-detail-next-action-at',
-      memo: 'client-detail-memo',
-    });
-    try {
-      const updated = await Auth.request(`/clients/${selectedClientId}`, {
-        method: 'PUT',
-        body: JSON.stringify(toClientApiPayload(payload)),
-      });
-      selectedClient = normalizeClient(updated);
-      clientsLoadedAt = Date.now();
-      syncClientIntoList(updated);
-      UI.showToast('거래처가 저장되었습니다', 'success');
-      render();
-      notifyClientsChanged();
-      await selectClient(selectedClientId, { silentList: true });
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
-  }
-
-  async function deleteSelectedClient() {
-    if (!selectedClientId) return;
-    const ok = await UI.confirm('거래처 삭제', '연결 정보는 해제되고 거래처만 삭제됩니다. 계속하시겠습니까?');
+    const ok = await UI.confirm(
+      '거래처 종료 처리',
+      'Google Sheet는 수정되지 않고, LinkFlow 화면에서만 숨김 처리됩니다. 계속하시겠습니까?'
+    );
     if (!ok) return;
+
     try {
-      await Auth.request(`/clients/${selectedClientId}`, { method: 'DELETE' });
-      UI.showToast('거래처가 삭제되었습니다', 'success');
-      const removedId = selectedClientId;
+      await Auth.request(`/clients/${selectedClientId}/hide`, { method: 'POST' });
+      const hiddenId = selectedClientId;
+      clients = clients.filter(client => client.id !== hiddenId);
       selectedClientId = null;
       selectedClient = null;
       timelineItems = [];
-      clients = clients.filter(client => client.id !== removedId);
-      clientsLoadedAt = Date.now();
+      revealPassword = false;
       ensureSelection();
       render();
       notifyClientsChanged();
       if (selectedClientId) {
         await selectClient(selectedClientId, { silentList: true });
       }
+      UI.showToast('거래처를 LinkFlow 목록에서 숨겼습니다', 'success');
     } catch (err) {
       UI.showToast(err.message, 'error');
     }
-  }
-
-  async function reorderClients(fromId, toId) {
-    const fromIndex = clients.findIndex(client => client.id === fromId);
-    const toIndex = clients.findIndex(client => client.id === toId);
-    if (fromIndex < 0 || toIndex < 0) return;
-
-    const [moved] = clients.splice(fromIndex, 1);
-    clients.splice(toIndex, 0, moved);
-    clients = clients.map((client, index) => ({ ...client, sort_order: index }));
-    renderList();
-
-    try {
-      await Auth.request('/clients/reorder', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          items: clients.map((client, index) => ({ id: client.id, sort_order: index })),
-        }),
-      });
-    } catch (err) {
-      UI.showToast(err.message || '순서 저장 실패', 'error');
-      await load({ selectedClientId, force: true });
-    }
-  }
-
-  function handleInboxClick(event) {
-    const eventButton = event.target.closest('[data-action="event"]');
-    if (eventButton) {
-      event.stopPropagation();
-      openActionEvent(eventButton.dataset.id);
-      return;
-    }
-
-    const row = event.target.closest('.client-inbox-item');
-    if (!row) return;
-    selectClient(row.dataset.id);
   }
 
   async function handleShortcutAction(event) {
@@ -586,11 +535,29 @@ const Clients = (() => {
     }
   }
 
-  function openCreateModal() {
-    document.getElementById('client-form').reset();
-    document.getElementById('client-status').value = 'active';
-    UI.openModal('client-modal');
-    document.getElementById('client-name')?.focus();
+  async function linkSelectedShortcut() {
+    const select = document.getElementById('client-shortcut-select');
+    if (!select || !selectedClientId || !select.value) return;
+    await updateBookmarkClientLink(select.value, selectedClientId, '바로가기를 거래처에 연결했습니다');
+  }
+
+  async function updateBookmarkClientLink(bookmarkId, clientId, successMessage) {
+    try {
+      await Auth.request(`/bookmarks/${bookmarkId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      UI.showToast(successMessage, 'success');
+      if (window.LinkFlowBookmarks?.refresh) {
+        await window.LinkFlowBookmarks.refresh();
+      } else {
+        const index = bookmarkItems.findIndex(item => item.id === bookmarkId);
+        if (index >= 0) bookmarkItems[index] = { ...bookmarkItems[index], client_id: clientId };
+        renderShortcuts();
+      }
+    } catch (err) {
+      UI.showToast(err.message, 'error');
+    }
   }
 
   function openActionEvent(clientId) {
@@ -609,60 +576,68 @@ const Clients = (() => {
     }, 50);
   }
 
-  function readClientForm(ids) {
-    const field = key => document.getElementById(ids[key]);
-    return {
-      name: field('name').value.trim(),
-      status: field('status').value,
-      owner_name: field('owner').value.trim() || null,
-      company_contact_name: field('companyContact').value.trim() || null,
-      phone: field('phone').value.trim() || null,
-      email: field('email').value.trim() || null,
-      last_contact_at: field('lastContact').value || null,
-      next_action_title: field('nextActionTitle').value.trim() || null,
-      next_action_at: field('nextActionAt').value || null,
-      memo: field('memo').value.trim() || null,
-    };
-  }
-
   function getFilteredClients() {
+    const query = searchQuery.toLowerCase();
     return clients.filter(client => {
-      if (!matchesFilter(client, filterId)) return false;
-      if (!searchQuery) return true;
+      if (!query) return true;
+      const extraValues = Object.entries(client.sheet_extra_fields || {})
+        .map(([key, value]) => `${key} ${value}`)
+        .join(' ');
       const haystack = [
         client.name,
         client.owner_name,
         client.company_contact_name,
-        client.memo,
-        client.__rawMemo,
-        client.email,
         client.phone,
-        client.__legacy?.code,
+        client.email,
+        client.memo,
+        client.client_code,
+        client.business_number,
+        client.ceo_name,
+        client.gyeongli_id,
         client.next_action_title,
+        extraValues,
       ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
-      return haystack.includes(searchQuery.toLowerCase());
+      return haystack.includes(query);
     });
   }
 
-  function getInboxClients() {
-    return clients
-      .filter(client => !!client.next_action_at && (isToday(client.next_action_at) || isOverdue(client.next_action_at)))
-      .sort((left, right) => (left.next_action_at || '').localeCompare(right.next_action_at || ''));
+  function getExtraFieldLabels(client) {
+    const labelsFromSchema = Array.isArray(schemaMeta.extra_fields)
+      ? schemaMeta.extra_fields.map(field => field?.label || field?.key).filter(Boolean)
+      : [];
+    const labelsFromClient = Object.keys(client.sheet_extra_fields || {});
+    return Array.from(new Set([...labelsFromSchema, ...labelsFromClient]))
+      .filter(label => String(client.sheet_extra_fields?.[label] || '').trim());
   }
 
-  function matchesFilter(client, activeFilter) {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'due_today') return isToday(client.next_action_at);
-    if (activeFilter === 'overdue') return isOverdue(client.next_action_at);
-    return (client.status || 'active') === activeFilter;
+  function buildSubtitle(client) {
+    const parts = [];
+    if (client.owner_name) parts.push(`경리팀 ${client.owner_name}`);
+    if (client.company_contact_name) parts.push(`기업 ${client.company_contact_name}`);
+    if (client.phone) parts.push(formatPhoneForDisplay(client.phone));
+    if (client.email) parts.push(client.email);
+    if (parts.length) return parts.join(' · ');
+    return 'Google Sheet 기반 읽기 전용 거래처 정보입니다.';
+  }
+
+  function buildListMeta(client) {
+    const parts = [];
+    if (client.client_code) parts.push(`코드 ${client.client_code}`);
+    if (client.business_number) parts.push(`사업자번호 ${client.business_number}`);
+    if (client.ceo_name) parts.push(`대표 ${client.ceo_name}`);
+    return parts.join(' · ');
+  }
+
+  function getClientDisplayName(client) {
+    return normalizeText(client?.name) || normalizeText(client?.gyeongli_id) || '이름 미지정';
   }
 
   function getClientName(clientId) {
     if (!clientId) return '';
-    const client = clients.find(item => item.id === clientId);
+    const client = clients.find(item => item.id === clientId) || (selectedClient?.id === clientId ? selectedClient : null);
     return client ? getClientDisplayName(client) : '';
   }
 
@@ -696,6 +671,7 @@ const Clients = (() => {
       !bookmark.client_id &&
       isBookmarkEditable(bookmark)
     );
+
     if (!candidates.length) {
       select.innerHTML = '<option value="">연결할 북마크 없음</option>';
       select.disabled = true;
@@ -708,302 +684,6 @@ const Clients = (() => {
     select.innerHTML = '<option value="">북마크 선택</option>' + candidates
       .map(bookmark => `<option value="${escapeAttr(bookmark.id)}">${escapeHtml(bookmark.title || '북마크')}</option>`)
       .join('');
-  }
-
-  async function linkSelectedShortcut() {
-    const select = document.getElementById('client-shortcut-select');
-    if (!select || !selectedClientId || !select.value) return;
-    await updateBookmarkClientLink(select.value, selectedClientId, '바로가기를 거래처에 연결했습니다');
-  }
-
-  async function updateBookmarkClientLink(bookmarkId, clientId, successMessage) {
-    try {
-      await Auth.request(`/bookmarks/${bookmarkId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ client_id: clientId }),
-      });
-      UI.showToast(successMessage, 'success');
-      if (window.LinkFlowBookmarks?.refresh) {
-        await window.LinkFlowBookmarks.refresh();
-      } else {
-        const index = bookmarkItems.findIndex(item => item.id === bookmarkId);
-        if (index >= 0) bookmarkItems[index] = { ...bookmarkItems[index], client_id: clientId };
-        renderShortcuts();
-      }
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
-  }
-
-  function saveCurrentView() {
-    customView = {
-      label: searchQuery ? `저장 뷰 · ${searchQuery}` : `저장 뷰 · ${getFilterLabel(filterId)}`,
-      filterId,
-      searchQuery,
-    };
-    renderCustomView();
-    Promise.resolve(Preferences?.setClientCustomView?.(customView))
-      .then(() => {
-        UI.showToast('현재 보기를 저장했습니다', 'success');
-      })
-      .catch(err => {
-        UI.showToast(err?.message || '저장 뷰 저장 실패', 'error');
-      });
-  }
-
-  function applyCustomView() {
-    if (!customView) return;
-    filterId = customView.filterId || 'all';
-    searchQuery = customView.searchQuery || '';
-    const searchInput = document.getElementById('clients-search-input');
-    if (searchInput) searchInput.value = searchQuery;
-    persistState();
-    render();
-  }
-
-  function clearCustomView() {
-    customView = null;
-    renderCustomView();
-    Promise.resolve(Preferences?.setClientCustomView?.(null))
-      .then(() => {
-        UI.showToast('저장 뷰를 삭제했습니다', 'success');
-      })
-      .catch(err => {
-        UI.showToast(err?.message || '저장 뷰 삭제 실패', 'error');
-      });
-  }
-
-  function resetFilters() {
-    filterId = 'all';
-    searchQuery = '';
-    const searchInput = document.getElementById('clients-search-input');
-    if (searchInput) searchInput.value = '';
-    persistState();
-    render();
-  }
-
-  function exportCsv() {
-    const rows = getFilteredClients();
-    const headers = ['거래처명', '상태', '경리팀 담당자', '기업 내부 담당자', '연락처', '이메일', '최근 접촉일', '다음 액션', '다음 액션일', '메모'];
-    const lines = [
-      headers.join(','),
-      ...rows.map(client => [
-        getClientDisplayName(client),
-        getStatusLabel(client.status),
-        client.owner_name || '',
-        client.company_contact_name || '',
-        client.phone || '',
-        client.email || '',
-        client.last_contact_at || '',
-        client.next_action_title || '',
-        client.next_action_at || '',
-        client.memo || '',
-      ].map(csvEscape).join(',')),
-    ];
-    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `linkflow-clients-${todayString()}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function syncClientIntoList(client) {
-    const normalized = normalizeClient(client);
-    const index = clients.findIndex(item => item.id === normalized.id);
-    if (index >= 0) {
-      clients[index] = { ...clients[index], ...normalized };
-    }
-  }
-
-  function notifyClientsChanged() {
-    window.dispatchEvent(new CustomEvent('lf:clients-changed', {
-      detail: { clients: clients.slice() },
-    }));
-  }
-
-  function persistState() {
-    if (persistStateTimer) clearTimeout(persistStateTimer);
-    const nextState = { filterId, searchQuery };
-    persistStateTimer = setTimeout(() => {
-      persistStateTimer = null;
-      if (Preferences?.setClientViewState) {
-        void Preferences.setClientViewState(nextState);
-      }
-    }, 250);
-  }
-
-  function restoreState() {
-    const raw = Preferences?.getClientViewState?.() || {};
-    if (raw.filterId) filterId = raw.filterId;
-    if (raw.searchQuery) searchQuery = raw.searchQuery;
-    const searchInput = document.getElementById('clients-search-input');
-    if (searchInput) searchInput.value = searchQuery;
-  }
-
-  function buildSubtitle(client) {
-    const parts = [];
-    if (client.owner_name) parts.push(`경리팀 ${client.owner_name}`);
-    if (client.company_contact_name) parts.push(`기업 ${client.company_contact_name}`);
-    if (client.phone) parts.push(formatPhoneForDisplay(client.phone));
-    if (client.email) parts.push(client.email);
-    if (parts.length) return parts.join(' · ');
-    if (client.__legacy?.code) return `거래처 코드 ${client.__legacy.code}`;
-    return '담당자와 연락 정보를 추가해두면 여기서 바로 보입니다.';
-  }
-
-  function buildListMeta(client) {
-    if (client.next_action_title) return client.next_action_title;
-    const parts = [];
-    if (client.company_contact_name) parts.push(`기업 ${client.company_contact_name}`);
-    if (client.__legacy?.code) parts.push(`코드 ${client.__legacy.code}`);
-    if (client.email) parts.push(client.email);
-    return parts.join(' · ');
-  }
-
-  function getClientDisplayName(client) {
-    return normalizeText(client?.name) || normalizeEmail(client?.gyeongli_id) || '이름 미지정';
-  }
-
-  function normalizeClient(client) {
-    const base = { ...(client || {}) };
-    const legacy = parseLegacyMemo(base.memo || '');
-    let ownerName = normalizeText(base.owner_name) || legacy.ownerName || '';
-    let companyContactName = legacy.companyContactName || '';
-    if (ownerName && !isKnownInternalAssignee(ownerName) && !companyContactName) {
-      companyContactName = ownerName;
-      ownerName = '';
-    }
-    const phone = normalizePhone(base.phone) || legacy.managerPhone || legacy.ceoPhone || '';
-    const email = normalizeEmail(base.email) || normalizeEmail(base.gyeongli_id) || '';
-
-    return {
-      ...base,
-      name: normalizeText(base.name) || normalizeEmail(base.gyeongli_id) || '이름 미지정',
-      owner_name: ownerName || null,
-      company_contact_name: companyContactName || null,
-      phone: phone || null,
-      email: email || null,
-      memo: cleanLegacyMemo(base.memo || '', {
-        removeOwner: Boolean(ownerName),
-        removeCompanyContact: Boolean(companyContactName),
-        removePhones: Boolean(phone),
-      }) || null,
-      __rawMemo: base.memo || '',
-      __legacy: legacy,
-    };
-  }
-
-  function normalizeBookmark(bookmark) {
-    return { ...(bookmark || {}) };
-  }
-
-  function parseLegacyMemo(memo) {
-    return {
-      code: extractLabeledValue(memo, '코드'),
-      ownerName: extractLabeledValue(memo, '담당자'),
-      companyContactName:
-        extractLabeledValue(memo, '기업내부담당자') ||
-        extractContactName(extractLabeledValue(memo, '관리자연락처')),
-      managerName: extractContactName(extractLabeledValue(memo, '관리자연락처')),
-      managerPhone: extractPhoneNumber(extractLabeledValue(memo, '관리자연락처')),
-      ceoPhone: extractPhoneNumber(extractLabeledValue(memo, '대표연락처')),
-    };
-  }
-
-  function extractLabeledValue(memo, label) {
-    const pattern = new RegExp(`${escapeRegExp(label)}\\s*:\\s*([^|]+)`);
-    return normalizeText(pattern.exec(String(memo || ''))?.[1] || '');
-  }
-
-  function extractContactName(value) {
-    const raw = normalizeText(value);
-    if (!raw) return '';
-    return normalizeText(
-      raw
-        .replace(/(?:\+?82[- ]?)?(?:0\d{1,2})[- ]?\d{3,4}[- ]?\d{4}/g, '')
-        .replace(/\s+/g, ' ')
-    );
-  }
-
-  function extractPhoneNumber(value) {
-    const match = String(value || '').match(/(?:\+?82[- ]?)?(?:0\d{1,2})[- ]?\d{3,4}[- ]?\d{4}/);
-    return normalizePhone(match?.[0] || '');
-  }
-
-  function cleanLegacyMemo(memo, options = {}) {
-    const segments = String(memo || '')
-      .split('|')
-      .map(segment => segment.trim())
-      .filter(Boolean);
-    if (!segments.length) return '';
-    return segments
-      .filter(segment => {
-        if (options.removeOwner && segment.startsWith('담당자:')) return false;
-        if (options.removeCompanyContact && segment.startsWith('기업내부담당자:')) return false;
-        if (options.removePhones && (segment.startsWith('관리자연락처:') || segment.startsWith('대표연락처:'))) return false;
-        return true;
-      })
-      .join(' | ');
-  }
-
-  function toClientApiPayload(formData) {
-    return {
-      name: formData.name,
-      status: formData.status,
-      owner_name: formData.owner_name,
-      phone: formData.phone,
-      email: formData.email,
-      last_contact_at: formData.last_contact_at,
-      next_action_title: formData.next_action_title,
-      next_action_at: formData.next_action_at,
-      memo: buildStructuredMemo(formData.memo, formData.company_contact_name),
-    };
-  }
-
-  function buildStructuredMemo(memo, companyContactName) {
-    const segments = String(memo || '')
-      .split('|')
-      .map(segment => segment.trim())
-      .filter(Boolean)
-      .filter(segment => !segment.startsWith('기업내부담당자:'));
-    if (normalizeText(companyContactName)) {
-      segments.push(`기업내부담당자: ${normalizeText(companyContactName)}`);
-    }
-    return segments.join(' | ') || null;
-  }
-
-  function normalizeText(value) {
-    const text = String(value || '').replace(/\s+/g, ' ').trim();
-    return text || '';
-  }
-
-  function normalizePhone(value) {
-    const digits = String(value || '').replace(/\D/g, '');
-    return digits || '';
-  }
-
-  function normalizeEmail(value) {
-    const email = normalizeText(value).toLowerCase();
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
-  }
-
-  function isKnownInternalAssignee(name) {
-    return INTERNAL_ASSIGNEES.has(normalizeText(name));
-  }
-
-  function formatPhoneForDisplay(value) {
-    const digits = normalizePhone(value);
-    if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-    if (digits.length === 10 && digits.startsWith('02')) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
-    if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-    if (digits.length === 9 && digits.startsWith('02')) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
-    return value || '';
-  }
-
-  function escapeRegExp(value) {
-    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   function getLinkedBookmarks(clientId) {
@@ -1038,20 +718,97 @@ const Clients = (() => {
     }
   }
 
-  function getFilterLabel(id) {
-    return FILTERS.find(filter => filter.id === id)?.label || '전체';
+  function togglePasswordVisibility() {
+    revealPassword = !revealPassword;
+    renderDetail();
   }
 
-  function getStatusLabel(status) {
-    return STATUS_LABELS[status || 'active'] || STATUS_LABELS.active;
+  function syncClientIntoList(client) {
+    const normalized = normalizeClient(client);
+    const index = clients.findIndex(item => item.id === normalized.id);
+    if (index >= 0) {
+      clients[index] = { ...clients[index], ...normalized };
+    }
   }
 
-  function isToday(dateString) {
-    return !!dateString && dateString === todayString();
+  function notifyClientsChanged() {
+    window.dispatchEvent(new CustomEvent('lf:clients-changed', {
+      detail: { clients: clients.slice() },
+    }));
   }
 
-  function isOverdue(dateString) {
-    return !!dateString && dateString < todayString();
+  function persistState() {
+    if (persistStateTimer) clearTimeout(persistStateTimer);
+    const nextState = { searchQuery };
+    persistStateTimer = setTimeout(() => {
+      persistStateTimer = null;
+      if (Preferences?.setClientViewState) {
+        void Preferences.setClientViewState(nextState);
+      }
+    }, 250);
+  }
+
+  function restoreState() {
+    const raw = Preferences?.getClientViewState?.() || {};
+    if (raw.searchQuery) searchQuery = raw.searchQuery;
+    const searchInput = document.getElementById('clients-search-input');
+    if (searchInput) searchInput.value = searchQuery;
+  }
+
+  function normalizeClient(client) {
+    const base = { ...(client || {}) };
+    return {
+      ...base,
+      name: normalizeText(base.name) || normalizeText(base.gyeongli_id) || '이름 미지정',
+      owner_name: normalizeText(base.owner_name) || null,
+      company_contact_name: normalizeText(base.company_contact_name) || null,
+      phone: normalizeText(base.phone) || null,
+      email: normalizeText(base.email) || null,
+      memo: normalizeMultilineText(base.memo) || null,
+      client_code: normalizeText(base.client_code) || null,
+      business_number: normalizeText(base.business_number) || null,
+      ceo_name: normalizeText(base.ceo_name) || null,
+      gyeongli_id: normalizeText(base.gyeongli_id) || null,
+      gyeongli_password: normalizeText(base.gyeongli_password) || null,
+      last_contact_at: normalizeText(base.last_contact_at) || null,
+      next_action_title: normalizeText(base.next_action_title) || null,
+      next_action_at: normalizeText(base.next_action_at) || null,
+      sheet_extra_fields: (base.sheet_extra_fields && typeof base.sheet_extra_fields === 'object')
+        ? base.sheet_extra_fields
+        : {},
+    };
+  }
+
+  function normalizeBookmark(bookmark) {
+    return { ...(bookmark || {}) };
+  }
+
+  function normalizeText(value) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    return text || '';
+  }
+
+  function normalizeMultilineText(value) {
+    const text = String(value || '')
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map(line => line.trim())
+      .join('\n')
+      .trim();
+    return text || '';
+  }
+
+  function normalizePhone(value) {
+    return String(value || '').replace(/\D/g, '');
+  }
+
+  function formatPhoneForDisplay(value) {
+    const digits = normalizePhone(value);
+    if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    if (digits.length === 10 && digits.startsWith('02')) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+    if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    if (digits.length === 9 && digits.startsWith('02')) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    return value || '';
   }
 
   function todayString() {
@@ -1078,9 +835,14 @@ const Clients = (() => {
     return raw.length > limit ? `${raw.slice(0, limit - 1)}…` : raw;
   }
 
-  function csvEscape(value) {
-    const raw = String(value || '');
-    return `"${raw.replace(/"/g, '""')}"`;
+  function setText(id, value) {
+    const node = document.getElementById(id);
+    if (node) node.textContent = value || '';
+  }
+
+  function setValue(id, value) {
+    const node = document.getElementById(id);
+    if (node) node.value = value || '';
   }
 
   function escapeHtml(value) {
