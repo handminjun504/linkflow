@@ -478,7 +478,9 @@ const Clients = (() => {
             <span>${escapeHtml(formatDateTime(item.occurred_at) || '-')}</span>
           </div>
           <p>${escapeHtml(item.title || '')}</p>
-          ${item.description ? `<small>${escapeHtml(trimText(item.description, 140))}</small>` : ''}
+          ${(item.owner_display_name || item.description)
+            ? `<small>${escapeHtml(trimText([item.owner_display_name ? `담당자: ${item.owner_display_name}` : '', item.description || ''].filter(Boolean).join(' · '), 160))}</small>`
+            : ''}
         </div>
       </div>
     `).join('');
