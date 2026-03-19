@@ -12,6 +12,7 @@ const Calendar = (() => {
   let weekTasksCacheKey = '';
   let weekTasksPromise = null;
   let notificationSessionKey = '';
+  let activeCalendarView = 'work';
 
   const HOLIDAY_API_BASE = (() => {
     const explicit = window.__LF_API_BASE__;
@@ -23,6 +24,10 @@ const Calendar = (() => {
   const DEFAULT_EVENT_COLOR = '#111111';
   const EVENTS_TTL = 60 * 1000;
   const WEEK_TASKS_TTL = 60 * 1000;
+  const CALENDAR_VIEW_LABELS = {
+    work: '업무 일정',
+    personal: '개인 일정',
+  };
 
   const DAY_COLORS = [
     { cls: 'task-day-sun', label: '일' },
@@ -65,14 +70,34 @@ const Calendar = (() => {
   }
 
   function getMonthKey(year, month) {
-    return `${year}-${String(month + 1).padStart(2, '0')}`;
+    return `${activeCalendarView}:${year}-${String(month + 1).padStart(2, '0')}`;
   }
 
   function getWeekKey(baseDate = new Date()) {
     const start = new Date(baseDate);
     start.setHours(0, 0, 0, 0);
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+    return `${activeCalendarView}:${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+  }
+
+  function getActiveCalendarView() {
+    return activeCalendarView === 'personal' ? 'personal' : 'work';
+  }
+
+  function isWorkView() {
+    return getActiveCalendarView() === 'work';
+  }
+
+  function getCurrentCalendarTypeForForm() {
+    const user = Auth?.getUser?.();
+    if (!user?.team_id && getActiveCalendarView() === 'work') return 'personal';
+    return getActiveCalendarView();
+  }
+
+  function invalidateCalendarCaches() {
+    monthEventCache.clear();
+    weekTasksLoadedAt = 0;
+    weekTasksCacheKey = '';
   }
 
   function rebuildEventIndex() {
@@ -89,6 +114,71 @@ const Calendar = (() => {
     eventsByDate = nextMap;
   }
 
+  function renderViewSwitch() {
+    const wrap = document.getElementById('calendar-view-switch');
+    if (!wrap) return;
+    wrap.querySelectorAll('.calendar-view-btn').forEach(button => {
+      button.classList.toggle('active', button.dataset.view === getActiveCalendarView());
+    });
+  }
+
+  function updateCalendarLayoutMode() {
+    const layout = document.querySelector('#tab-calendar .calendar-layout');
+    if (!layout) return;
+    layout.classList.toggle('personal-mode', !isWorkView());
+  }
+
+  function setCalendarView(nextView, options = {}) {
+    const normalized = nextView === 'personal' ? 'personal' : 'work';
+    if (activeCalendarView === normalized && !options.force) {
+      renderViewSwitch();
+      updateCalendarLayoutMode();
+      return;
+    }
+    activeCalendarView = normalized;
+    renderViewSwitch();
+    updateCalendarLayoutMode();
+    syncCalendarTypeControls(getCurrentCalendarTypeForForm());
+    if (!options.silent) {
+      void load({ force: true, forceWeekTasks: isWorkView() });
+    }
+  }
+
+  function syncCalendarTypeControls(selectedType = null) {
+    const select = document.getElementById('evt-calendar-type');
+    const hint = document.getElementById('evt-calendar-hint');
+    const taskCheckbox = document.getElementById('evt-is-task');
+    const taskWrap = document.getElementById('evt-is-task-wrap');
+    if (!select || !hint || !taskCheckbox || !taskWrap) return;
+
+    const user = Auth?.getUser?.() || {};
+    const hasTeam = Boolean(user.team_id);
+    const requested = selectedType || select.value || getCurrentCalendarTypeForForm();
+    const nextType = requested === 'work' && !hasTeam ? 'personal' : requested;
+
+    const workOption = select.querySelector('option[value="work"]');
+    if (workOption) workOption.disabled = !hasTeam;
+
+    select.value = nextType;
+    taskCheckbox.disabled = nextType !== 'work';
+    taskWrap.classList.toggle('is-disabled', nextType !== 'work');
+    if (nextType !== 'work') {
+      taskCheckbox.checked = false;
+    }
+
+    hint.textContent = nextType === 'work'
+      ? (hasTeam
+        ? '같은 팀 계정에게 바로 공유됩니다.'
+        : '팀이 지정된 계정만 업무 일정으로 등록할 수 있습니다.')
+      : '본인 계정에서만 보이는 개인 일정입니다.';
+  }
+
+  function getEventCalendarType(event) {
+    if ((event?.calendar_type || '').toLowerCase() === 'work') return 'work';
+    if ((event?.calendar_type || '').toLowerCase() === 'personal') return 'personal';
+    return event?.is_task ? 'work' : 'personal';
+  }
+
   function init() {
     const now = new Date();
     currentYear = now.getFullYear();
@@ -98,8 +188,14 @@ const Calendar = (() => {
     document.getElementById('cal-next').addEventListener('click', () => navigate(1));
     document.getElementById('cal-today').addEventListener('click', goToday);
     document.getElementById('cal-add')?.addEventListener('click', () => openAddEvent(getTodayDateStr()));
+    document.querySelectorAll('#calendar-view-switch .calendar-view-btn').forEach(button => {
+      button.addEventListener('click', () => setCalendarView(button.dataset.view));
+    });
     document.getElementById('event-form').addEventListener('submit', saveEvent);
     document.getElementById('evt-delete-btn').addEventListener('click', deleteCurrentEvent);
+    document.getElementById('evt-calendar-type')?.addEventListener('change', event => {
+      syncCalendarTypeControls(event.target.value);
+    });
     bindDayEventsModal();
     document.getElementById('calendar-grid')?.addEventListener('click', event => {
       const cell = event.target.closest('.cal-cell:not(.empty)');
@@ -125,6 +221,9 @@ const Calendar = (() => {
 
     requestNotificationPermission();
     populateClientOptions();
+    renderViewSwitch();
+    updateCalendarLayoutMode();
+    syncCalendarTypeControls();
     window.addEventListener('lf:clients-changed', () => {
       populateClientOptions(document.getElementById('evt-client')?.value || '');
       if (document.getElementById('tab-calendar')?.classList.contains('active')) {
@@ -134,6 +233,8 @@ const Calendar = (() => {
     });
     window.addEventListener('lf:auth-changed', event => {
       resetNotificationState();
+      invalidateCalendarCaches();
+      syncCalendarTypeControls();
       if (!event.detail?.loggedIn) {
         events = [];
         eventsByDate = new Map();
@@ -217,7 +318,11 @@ const Calendar = (() => {
         rebuildEventIndex();
         render();
         scheduleNotifications();
-        if (!skipWeekTasks) void loadWeekTasks({ force: forceWeekTasks });
+        if (!skipWeekTasks && isWorkView()) void loadWeekTasks({ force: forceWeekTasks });
+        else if (!isWorkView()) {
+          weekTasks = [];
+          renderTaskSidebar();
+        }
         void ensureHolidays(currentYear);
         return events;
       }
@@ -234,7 +339,7 @@ const Calendar = (() => {
 
       const requestToken = ++monthLoadToken;
       void ensureHolidays(currentYear);
-      const loadedEvents = await Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}`);
+      const loadedEvents = await Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}&calendar_type=${encodeURIComponent(getActiveCalendarView())}`);
       if (requestToken !== monthLoadToken) return events;
       events = Array.isArray(loadedEvents) ? loadedEvents : [];
       monthEventCache.set(monthKey, { items: events.slice(), loadedAt: Date.now() });
@@ -253,7 +358,11 @@ const Calendar = (() => {
     rebuildEventIndex();
     render();
     scheduleNotifications();
-    if (!skipWeekTasks) void loadWeekTasks({ force: forceWeekTasks });
+    if (!skipWeekTasks && isWorkView()) void loadWeekTasks({ force: forceWeekTasks });
+    else if (!isWorkView()) {
+      weekTasks = [];
+      renderTaskSidebar();
+    }
     return events;
   }
 
@@ -301,7 +410,9 @@ const Calendar = (() => {
           const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
           const clientName = getClientName(ev.client_id);
           const doneClass = ev.is_done ? ' cal-event-done' : '';
-          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${time}${ev.title}${clientName ? ` · ${clientName}` : ''}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>`;
+          const scopeClass = getEventCalendarType(ev) === 'work' ? ' team-event' : '';
+          const scopeLabel = getEventCalendarType(ev) === 'work' ? '팀 공유' : '개인';
+          html += `<div class="cal-event-bar${doneClass}${scopeClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${scopeLabel} · ${time}${ev.title}${clientName ? ` · ${clientName}` : ''}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>`;
         });
         if (dayEvents.length > 3) {
           html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
@@ -319,6 +430,7 @@ const Calendar = (() => {
 
   async function loadWeekTasks(options = {}) {
     if (!Auth.isLoggedIn()) { weekTasks = []; renderTaskSidebar(); return []; }
+    if (!isWorkView()) { weekTasks = []; renderTaskSidebar(); return []; }
 
     const force = !!options.force;
     const today = getTodayDateStr();
@@ -333,7 +445,7 @@ const Calendar = (() => {
 
     weekTasksPromise = (async () => {
       try {
-        const loadedTasks = await Auth.request(`/events/week?date_str=${today}`);
+        const loadedTasks = await Auth.request(`/events/week?date_str=${today}&calendar_type=work`);
         weekTasks = Array.isArray(loadedTasks) ? loadedTasks : [];
         weekTasksLoadedAt = Date.now();
         weekTasksCacheKey = weekKey;
@@ -363,7 +475,17 @@ const Calendar = (() => {
 
   function renderTaskSidebar() {
     const container = document.getElementById('task-list');
+    const title = document.querySelector('#task-sidebar .task-sidebar-header h3');
     if (!container) return;
+    if (title) {
+      title.innerHTML = isWorkView()
+        ? '<i class="ri-list-check-2"></i> 이번 주 업무'
+        : '<i class="ri-user-line"></i> 개인 일정';
+    }
+    if (!isWorkView()) {
+      container.innerHTML = '<div class="task-sidebar-empty-state"><i class="ri-user-line"></i><p>개인 일정 탭에서는 주간 업무 목록을 숨깁니다</p></div>';
+      return;
+    }
     if (weekTasks.length === 0) {
       container.innerHTML = '<div class="task-empty"><i class="ri-checkbox-circle-line"></i><p>이번 주 업무가 없습니다</p></div>';
       return;
@@ -396,6 +518,9 @@ const Calendar = (() => {
         const time = t.start_time ? t.start_time.substring(0, 5) : '';
         const note = (t.description || '').trim();
         const clientName = getClientName(t.client_id);
+        const calendarBadge = getEventCalendarType(t) === 'work'
+          ? '<span class="task-item-badge work"><i class="ri-team-line"></i> 팀 공유</span>'
+          : '<span class="task-item-badge"><i class="ri-user-line"></i> 개인</span>';
         const dateAttr = (t._recurring || t.recurrence_type) ? ` data-date="${t.start_date}"` : '';
         html += `<div class="task-item${doneClass}">
           <input type="checkbox" class="task-check" data-id="${t.id}"${dateAttr} ${checked} />
@@ -403,6 +528,7 @@ const Calendar = (() => {
             <span class="task-item-title">${escapeHtml(t.title)}</span>
             ${time ? `<span class="task-item-time">${time}</span>` : ''}
             ${clientName ? `<span class="task-item-time">거래처 · ${escapeHtml(clientName)}</span>` : ''}
+            ${calendarBadge}
             ${note ? `<span class="task-item-note">${escapeHtml(note)}</span>` : ''}
           </div>
           <span class="task-color-dot" style="background:${t.color || DEFAULT_EVENT_COLOR}"></span>
@@ -428,6 +554,7 @@ const Calendar = (() => {
             method: 'PATCH',
             body: JSON.stringify({ is_done: nextDone }),
           });
+          invalidateCalendarCaches();
           void Promise.all([
             loadWeekTasks({ force: true }),
             load({ force: true, skipWeekTasks: true }),
@@ -462,6 +589,8 @@ const Calendar = (() => {
     document.getElementById('evt-skip-weekend').checked = true;
     document.getElementById('evt-recurrence-day').value = '';
     document.getElementById('evt-client').value = '';
+    document.getElementById('evt-calendar-type').value = getCurrentCalendarTypeForForm();
+    syncCalendarTypeControls(getCurrentCalendarTypeForForm());
     resetColorPicker('evt-color-picker', DEFAULT_EVENT_COLOR);
     UI.openModal('event-modal');
   }
@@ -508,6 +637,7 @@ const Calendar = (() => {
       const note = (ev.description || '').trim();
       const clientName = getClientName(ev.client_id);
       const doneClass = ev.is_done ? ' day-event-done' : '';
+      const isWork = getEventCalendarType(ev) === 'work';
       return `<button type="button" class="day-event-item${doneClass}" data-id="${ev.id}">
         <span class="day-event-color" style="background:${ev.color || DEFAULT_EVENT_COLOR}"></span>
         <div class="day-event-main">
@@ -515,7 +645,10 @@ const Calendar = (() => {
             <span class="day-event-time">${time}</span>
             <span class="day-event-title">${escapeHtml(ev.title)}</span>
           </div>
-          ${clientName ? `<div class="day-event-note">거래처 · ${escapeHtml(clientName)}</div>` : ''}
+          <div class="day-event-meta">
+            <span class="day-event-badge ${isWork ? 'work' : ''}"><i class="${isWork ? 'ri-team-line' : 'ri-user-line'}"></i>${isWork ? '업무 일정' : '개인 일정'}</span>
+            ${clientName ? `<span class="day-event-badge"><i class="ri-briefcase-4-line"></i>${escapeHtml(clientName)}</span>` : ''}
+          </div>
           ${note ? `<div class="day-event-note">${escapeHtml(note)}</div>` : ''}
         </div>
         <i class="ri-arrow-right-s-line"></i>
@@ -555,6 +688,8 @@ const Calendar = (() => {
     document.getElementById('evt-recurrence-day-wrap').style.display = isMonthly ? '' : 'none';
     document.getElementById('evt-recurrence-day').value = isMonthly ? (ev.recurrence_day || new Date(ev.start_date + 'T00:00:00').getDate()) : '';
     document.getElementById('evt-skip-weekend').checked = ev.skip_weekend || false;
+    document.getElementById('evt-calendar-type').value = getEventCalendarType(ev);
+    syncCalendarTypeControls(getEventCalendarType(ev));
     document.getElementById('evt-is-task').checked = ev.is_task || false;
     document.getElementById('evt-client').value = ev.client_id || '';
     document.getElementById('evt-color').value = ev.color || DEFAULT_EVENT_COLOR;
@@ -603,7 +738,8 @@ const Calendar = (() => {
       recurrence_end: recurrence ? (document.getElementById('evt-recurrence-end').value || null) : null,
       recurrence_interval: 1,
       recurrence_day: recurrenceDay,
-      is_task: document.getElementById('evt-is-task').checked,
+      calendar_type: document.getElementById('evt-calendar-type').value || getCurrentCalendarTypeForForm(),
+      is_task: document.getElementById('evt-calendar-type').value === 'work' && document.getElementById('evt-is-task').checked,
       skip_weekend: recurrence ? document.getElementById('evt-skip-weekend').checked : false,
       client_id: document.getElementById('evt-client').value || null,
     };
@@ -616,6 +752,7 @@ const Calendar = (() => {
         await Auth.request('/events', { method: 'POST', body: JSON.stringify(data) });
         UI.showToast('일정이 추가되었습니다', 'success');
       }
+      invalidateCalendarCaches();
       UI.closeModal('event-modal');
       void load({ force: true, forceWeekTasks: true });
     } catch (err) {
@@ -631,6 +768,7 @@ const Calendar = (() => {
     try {
       await Auth.request(`/events/${id}`, { method: 'DELETE' });
       UI.showToast('삭제되었습니다', 'success');
+      invalidateCalendarCaches();
       UI.closeModal('event-modal');
       void load({ force: true, forceWeekTasks: true });
     } catch (err) {
@@ -685,6 +823,12 @@ const Calendar = (() => {
     document.getElementById('evt-title').value = prefill.title || '';
     document.getElementById('evt-desc').value = prefill.description || '';
     document.getElementById('evt-is-task').checked = !!prefill.isTask;
+    const prefillType = prefill.calendarType || (prefill.isTask ? 'work' : getCurrentCalendarTypeForForm());
+    document.getElementById('evt-calendar-type').value = prefillType;
+    syncCalendarTypeControls(prefillType);
+    if (prefill.isTask && prefillType === 'work') {
+      document.getElementById('evt-is-task').checked = true;
+    }
     if (prefill.clientId) {
       populateClientOptions(prefill.clientId);
       document.getElementById('evt-client').value = prefill.clientId;

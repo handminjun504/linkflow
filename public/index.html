@@ -305,6 +305,10 @@
               <h2 id="cal-month-title"></h2>
               <button class="icon-btn" id="cal-next"><i class="ri-arrow-right-s-line"></i></button>
             </div>
+            <div class="calendar-view-switch" id="calendar-view-switch">
+              <button type="button" class="calendar-view-btn active" data-view="work">업무 일정</button>
+              <button type="button" class="calendar-view-btn" data-view="personal">개인 일정</button>
+            </div>
             <div class="calendar-header-actions">
               <button class="btn btn-sm btn-outline" id="cal-today">오늘</button>
               <button class="btn btn-primary btn-sm" id="cal-add"><i class="ri-add-line"></i> 일정 추가</button>
@@ -518,6 +522,16 @@
           </div>
         </div>
         <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">일정 구분</label>
+            <select id="evt-calendar-type" class="select-input">
+              <option value="work">업무 일정</option>
+              <option value="personal">개인 일정</option>
+            </select>
+            <div class="field-help" id="evt-calendar-hint">같은 팀 계정에게 공유됩니다.</div>
+          </div>
+        </div>
+        <div class="form-row">
           <div class="form-col"><label class="field-label">반복</label>
             <select id="evt-recurrence" class="select-input">
               <option value="">없음</option><option value="daily">매일</option><option value="weekly">매주</option>
@@ -538,7 +552,7 @@
           <span>주말/공휴일이면 직전 평일로 자동 조정</span>
         </label>
         <div class="input-group"><i class="ri-file-text-line"></i><input type="text" id="evt-desc" placeholder="메모 (선택)" /></div>
-        <label class="checkbox-label" style="margin-bottom:8px">
+        <label class="checkbox-label" id="evt-is-task-wrap" style="margin-bottom:8px">
           <input type="checkbox" id="evt-is-task" />
           <span>업무로 등록 (업무 목록에 표시)</span>
         </label>
