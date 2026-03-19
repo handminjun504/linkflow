@@ -534,12 +534,13 @@
         <div class="form-row">
           <div class="form-col"><label class="field-label">반복</label>
             <select id="evt-recurrence" class="select-input">
-              <option value="">없음</option><option value="daily">매일</option><option value="weekly">매주</option>
-              <option value="monthly">매월</option><option value="yearly">매년</option>
+              <option value="">없음</option><option value="daily">매일(영업일)</option><option value="weekly">매주</option>
+              <option value="monthly">매월</option><option value="quarterly">분기</option>
+              <option value="semi_annually">반기</option><option value="annually">연간</option>
             </select>
           </div>
           <div class="form-col" id="evt-recurrence-day-wrap" style="display:none">
-            <label class="field-label">매월 반복일</label>
+            <label class="field-label">반복일</label>
             <input type="number" id="evt-recurrence-day" class="select-input" min="1" max="31" placeholder="예: 22" />
           </div>
           <div class="form-col" id="evt-recurrence-end-wrap" style="display:none">

@@ -24,10 +24,20 @@ const Calendar = (() => {
   const DEFAULT_EVENT_COLOR = '#111111';
   const EVENTS_TTL = 60 * 1000;
   const WEEK_TASKS_TTL = 60 * 1000;
+  const MONTHLY_ANCHOR_RECURRENCES = new Set(['monthly', 'quarterly', 'semi_annually']);
   const CALENDAR_VIEW_LABELS = {
     work: '업무 일정',
     personal: '개인 일정',
   };
+
+  function normalizeRecurrenceType(value) {
+    const normalized = (value || '').toLowerCase();
+    return normalized === 'yearly' ? 'annually' : normalized;
+  }
+
+  function usesMonthlyAnchor(value) {
+    return MONTHLY_ANCHOR_RECURRENCES.has(normalizeRecurrenceType(value));
+  }
 
   const DAY_COLORS = [
     { cls: 'task-day-sun', label: '일' },
@@ -211,12 +221,15 @@ const Calendar = (() => {
     });
 
     document.getElementById('evt-recurrence').addEventListener('change', e => {
-      const val = e.target.value;
+      const val = normalizeRecurrenceType(e.target.value);
       const hasRecurrence = !!val;
-      const isMonthly = val === 'monthly';
+      const hasMonthlyAnchor = usesMonthlyAnchor(val);
       document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
       document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence ? '' : 'none';
-      document.getElementById('evt-recurrence-day-wrap').style.display = isMonthly ? '' : 'none';
+      document.getElementById('evt-recurrence-day-wrap').style.display = hasMonthlyAnchor ? '' : 'none';
+      if (val === 'daily') {
+        document.getElementById('evt-skip-weekend').checked = true;
+      }
     });
 
     requestNotificationPermission();
@@ -679,15 +692,16 @@ const Calendar = (() => {
     document.getElementById('evt-end-date').value = ev.end_date || '';
     document.getElementById('evt-desc').value = ev.description || '';
     document.getElementById('evt-remind').value = ev.remind_minutes != null ? String(ev.remind_minutes) : '';
-    document.getElementById('evt-recurrence').value = ev.recurrence_type || '';
+    const recurrenceType = normalizeRecurrenceType(ev.recurrence_type || '');
+    document.getElementById('evt-recurrence').value = recurrenceType || '';
     document.getElementById('evt-recurrence-end').value = ev.recurrence_end || '';
-    const hasRecurrence = !!ev.recurrence_type;
-    const isMonthly = ev.recurrence_type === 'monthly';
+    const hasRecurrence = !!recurrenceType;
+    const hasMonthlyAnchor = usesMonthlyAnchor(recurrenceType);
     document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
     document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence ? '' : 'none';
-    document.getElementById('evt-recurrence-day-wrap').style.display = isMonthly ? '' : 'none';
-    document.getElementById('evt-recurrence-day').value = isMonthly ? (ev.recurrence_day || new Date(ev.start_date + 'T00:00:00').getDate()) : '';
-    document.getElementById('evt-skip-weekend').checked = ev.skip_weekend || false;
+    document.getElementById('evt-recurrence-day-wrap').style.display = hasMonthlyAnchor ? '' : 'none';
+    document.getElementById('evt-recurrence-day').value = hasMonthlyAnchor ? (ev.recurrence_day || new Date(ev.start_date + 'T00:00:00').getDate()) : '';
+    document.getElementById('evt-skip-weekend').checked = recurrenceType === 'daily' ? true : (ev.skip_weekend || false);
     document.getElementById('evt-calendar-type').value = getEventCalendarType(ev);
     syncCalendarTypeControls(getEventCalendarType(ev));
     document.getElementById('evt-is-task').checked = ev.is_task || false;
@@ -707,11 +721,11 @@ const Calendar = (() => {
     e.preventDefault();
     const id = document.getElementById('evt-edit-id').value;
     const remindVal = document.getElementById('evt-remind').value;
-    const recurrence = document.getElementById('evt-recurrence').value;
+    const recurrence = normalizeRecurrenceType(document.getElementById('evt-recurrence').value);
 
     let startDate = document.getElementById('evt-date').value;
     let recurrenceDay = null;
-    if (recurrence === 'monthly') {
+    if (usesMonthlyAnchor(recurrence)) {
       const dayInput = document.getElementById('evt-recurrence-day').value;
       if (dayInput) {
         recurrenceDay = Math.min(31, Math.max(1, parseInt(dayInput, 10)));
@@ -740,7 +754,7 @@ const Calendar = (() => {
       recurrence_day: recurrenceDay,
       calendar_type: document.getElementById('evt-calendar-type').value || getCurrentCalendarTypeForForm(),
       is_task: document.getElementById('evt-calendar-type').value === 'work' && document.getElementById('evt-is-task').checked,
-      skip_weekend: recurrence ? document.getElementById('evt-skip-weekend').checked : false,
+      skip_weekend: recurrence === 'daily' ? true : (recurrence ? document.getElementById('evt-skip-weekend').checked : false),
       client_id: document.getElementById('evt-client').value || null,
     };
 
