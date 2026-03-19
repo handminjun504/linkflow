@@ -131,7 +131,7 @@
 
           <div class="clients-search-box">
             <i class="ri-search-line"></i>
-            <input type="text" id="clients-search-input" placeholder="거래처, 담당자, 메모 검색" />
+            <input type="text" id="clients-search-input" placeholder="거래처, 경리팀 담당, 기업 담당, 메모 검색" />
           </div>
 
           <section class="clients-inbox-card">
@@ -151,7 +151,7 @@
               <div class="clients-list-header">
                 <span>거래처명</span>
                 <span>상태</span>
-                <span>담당</span>
+                <span>경리팀 담당</span>
                 <span>최근 접촉</span>
                 <span>다음 액션</span>
               </div>
@@ -164,7 +164,7 @@
           <div class="clients-detail-empty" id="clients-detail-empty">
             <i class="ri-building-2-line"></i>
             <h3>거래처를 선택하세요</h3>
-            <p>다음 액션, 담당자, 메모, 타임라인을 한 화면에서 관리합니다.</p>
+            <p>다음 액션, 경리팀 담당, 기업 담당, 메모, 타임라인을 한 화면에서 관리합니다.</p>
           </div>
 
           <div class="clients-detail-body hidden" id="clients-detail-body">
@@ -198,15 +198,21 @@
               </div>
               <div class="form-row">
                 <div class="form-col">
-                  <label class="field-label">담당자</label>
-                  <input type="text" id="client-detail-owner" class="select-input" placeholder="담당자 이름" />
+                  <label class="field-label">경리팀 담당자</label>
+                  <input type="text" id="client-detail-owner" class="select-input" placeholder="예: 조희경" />
                 </div>
                 <div class="form-col">
-                  <label class="field-label">연락처</label>
+                  <label class="field-label">기업 내부 담당자</label>
+                  <input type="text" id="client-detail-company-contact" class="select-input" placeholder="회사 쪽 담당자 이름" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-col">
+                  <label class="field-label">기업 담당 연락처</label>
                   <input type="text" id="client-detail-phone" class="select-input" placeholder="전화번호" />
                 </div>
                 <div class="form-col">
-                  <label class="field-label">이메일</label>
+                  <label class="field-label">기업 담당 이메일</label>
                   <input type="email" id="client-detail-email" class="select-input" placeholder="이메일" />
                 </div>
               </div>
@@ -643,15 +649,21 @@
         </div>
         <div class="form-row">
           <div class="form-col">
-            <label class="field-label">담당자</label>
-            <input type="text" id="client-owner" class="select-input" placeholder="담당자" />
+            <label class="field-label">경리팀 담당자</label>
+            <input type="text" id="client-owner" class="select-input" placeholder="예: 조희경" />
           </div>
           <div class="form-col">
-            <label class="field-label">연락처</label>
+            <label class="field-label">기업 내부 담당자</label>
+            <input type="text" id="client-company-contact" class="select-input" placeholder="회사 쪽 담당자 이름" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">기업 담당 연락처</label>
             <input type="text" id="client-phone" class="select-input" placeholder="전화번호" />
           </div>
           <div class="form-col">
-            <label class="field-label">이메일</label>
+            <label class="field-label">기업 담당 이메일</label>
             <input type="email" id="client-email" class="select-input" placeholder="이메일" />
           </div>
         </div>

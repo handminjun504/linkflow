@@ -1006,6 +1006,7 @@ textarea.select-input {
   border-top: 1px solid var(--border);
   cursor: pointer;
   transition: all var(--transition);
+  color: var(--text);
 }
 
 .client-list-row:hover {
@@ -1038,9 +1039,11 @@ textarea.select-input {
   flex-direction: column;
   gap: 3px;
   overflow: hidden;
+  color: var(--text);
 }
 
-.client-cell-name strong {
+.client-cell-name strong,
+.client-name-text {
   display: block;
   font-size: 14px;
   color: var(--text);
@@ -1149,6 +1152,7 @@ textarea.select-input {
 
 .client-detail-form .form-row {
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .client-detail-memo {

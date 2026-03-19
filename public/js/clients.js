@@ -17,6 +17,16 @@ const Clients = (() => {
     paused: '중단',
     closed: '종료',
   };
+  const INTERNAL_ASSIGNEES = new Set([
+    '조희경',
+    '김나리',
+    '금종석',
+    '김윤주',
+    '김동건',
+    '조은',
+    '김재우',
+    '김유경',
+  ]);
   const TIMELINE_ICONS = {
     bookmark: 'ri-bookmark-3-line',
     memo: 'ri-sticky-note-line',
@@ -240,7 +250,7 @@ const Clients = (() => {
         draggable="${canReorder ? 'true' : 'false'}"
       >
         <span class="client-cell client-cell-name">
-          <strong>${escapeHtml(getClientDisplayName(client))}</strong>
+          <span class="client-name-text" title="${escapeAttr(getClientDisplayName(client))}">${escapeHtml(getClientDisplayName(client))}</span>
           ${buildListMeta(client) ? `<small>${escapeHtml(buildListMeta(client))}</small>` : ''}
         </span>
         <span class="client-cell">
@@ -308,6 +318,7 @@ const Clients = (() => {
     document.getElementById('client-detail-name-input').value = client.name || '';
     document.getElementById('client-detail-status').value = client.status || 'active';
     document.getElementById('client-detail-owner').value = client.owner_name || '';
+    document.getElementById('client-detail-company-contact').value = client.company_contact_name || '';
     document.getElementById('client-detail-phone').value = client.phone || '';
     document.getElementById('client-detail-email').value = client.email || '';
     document.getElementById('client-detail-last-contact').value = client.last_contact_at || '';
@@ -413,6 +424,7 @@ const Clients = (() => {
       name: 'client-name',
       status: 'client-status',
       owner: 'client-owner',
+      companyContact: 'client-company-contact',
       phone: 'client-phone',
       email: 'client-email',
       lastContact: 'client-last-contact',
@@ -423,7 +435,7 @@ const Clients = (() => {
     try {
       const created = await Auth.request('/clients', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(toClientApiPayload(payload)),
       });
       UI.closeModal('client-modal');
       UI.showToast('거래처가 추가되었습니다', 'success');
@@ -441,6 +453,7 @@ const Clients = (() => {
       name: 'client-detail-name-input',
       status: 'client-detail-status',
       owner: 'client-detail-owner',
+      companyContact: 'client-detail-company-contact',
       phone: 'client-detail-phone',
       email: 'client-detail-email',
       lastContact: 'client-detail-last-contact',
@@ -451,7 +464,7 @@ const Clients = (() => {
     try {
       const updated = await Auth.request(`/clients/${selectedClientId}`, {
         method: 'PUT',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(toClientApiPayload(payload)),
       });
       selectedClient = normalizeClient(updated);
       syncClientIntoList(updated);
@@ -575,6 +588,7 @@ const Clients = (() => {
       name: field('name').value.trim(),
       status: field('status').value,
       owner_name: field('owner').value.trim() || null,
+      company_contact_name: field('companyContact').value.trim() || null,
       phone: field('phone').value.trim() || null,
       email: field('email').value.trim() || null,
       last_contact_at: field('lastContact').value || null,
@@ -591,6 +605,7 @@ const Clients = (() => {
       const haystack = [
         client.name,
         client.owner_name,
+        client.company_contact_name,
         client.memo,
         client.__rawMemo,
         client.email,
@@ -732,13 +747,14 @@ const Clients = (() => {
 
   function exportCsv() {
     const rows = getFilteredClients();
-    const headers = ['거래처명', '상태', '담당자', '연락처', '이메일', '최근 접촉일', '다음 액션', '다음 액션일', '메모'];
+    const headers = ['거래처명', '상태', '경리팀 담당자', '기업 내부 담당자', '연락처', '이메일', '최근 접촉일', '다음 액션', '다음 액션일', '메모'];
     const lines = [
       headers.join(','),
       ...rows.map(client => [
         getClientDisplayName(client),
         getStatusLabel(client.status),
         client.owner_name || '',
+        client.company_contact_name || '',
         client.phone || '',
         client.email || '',
         client.last_contact_at || '',
@@ -793,7 +809,11 @@ const Clients = (() => {
   }
 
   function buildSubtitle(client) {
-    const parts = [client.owner_name, formatPhoneForDisplay(client.phone), client.email].filter(Boolean);
+    const parts = [];
+    if (client.owner_name) parts.push(`경리팀 ${client.owner_name}`);
+    if (client.company_contact_name) parts.push(`기업 ${client.company_contact_name}`);
+    if (client.phone) parts.push(formatPhoneForDisplay(client.phone));
+    if (client.email) parts.push(client.email);
     if (parts.length) return parts.join(' · ');
     if (client.__legacy?.code) return `거래처 코드 ${client.__legacy.code}`;
     return '담당자와 연락 정보를 추가해두면 여기서 바로 보입니다.';
@@ -802,6 +822,7 @@ const Clients = (() => {
   function buildListMeta(client) {
     if (client.next_action_title) return client.next_action_title;
     const parts = [];
+    if (client.company_contact_name) parts.push(`기업 ${client.company_contact_name}`);
     if (client.__legacy?.code) parts.push(`코드 ${client.__legacy.code}`);
     if (client.email) parts.push(client.email);
     return parts.join(' · ');
@@ -814,7 +835,12 @@ const Clients = (() => {
   function normalizeClient(client) {
     const base = { ...(client || {}) };
     const legacy = parseLegacyMemo(base.memo || '');
-    const ownerName = normalizeText(base.owner_name) || legacy.ownerName || legacy.managerName || '';
+    let ownerName = normalizeText(base.owner_name) || legacy.ownerName || '';
+    let companyContactName = legacy.companyContactName || '';
+    if (ownerName && !isKnownInternalAssignee(ownerName) && !companyContactName) {
+      companyContactName = ownerName;
+      ownerName = '';
+    }
     const phone = normalizePhone(base.phone) || legacy.managerPhone || legacy.ceoPhone || '';
     const email = normalizeEmail(base.email) || normalizeEmail(base.gyeongli_id) || '';
 
@@ -822,10 +848,12 @@ const Clients = (() => {
       ...base,
       name: normalizeText(base.name) || normalizeEmail(base.gyeongli_id) || '이름 미지정',
       owner_name: ownerName || null,
+      company_contact_name: companyContactName || null,
       phone: phone || null,
       email: email || null,
       memo: cleanLegacyMemo(base.memo || '', {
         removeOwner: Boolean(ownerName),
+        removeCompanyContact: Boolean(companyContactName),
         removePhones: Boolean(phone),
       }) || null,
       __rawMemo: base.memo || '',
@@ -841,6 +869,9 @@ const Clients = (() => {
     return {
       code: extractLabeledValue(memo, '코드'),
       ownerName: extractLabeledValue(memo, '담당자'),
+      companyContactName:
+        extractLabeledValue(memo, '기업내부담당자') ||
+        extractContactName(extractLabeledValue(memo, '관리자연락처')),
       managerName: extractContactName(extractLabeledValue(memo, '관리자연락처')),
       managerPhone: extractPhoneNumber(extractLabeledValue(memo, '관리자연락처')),
       ceoPhone: extractPhoneNumber(extractLabeledValue(memo, '대표연락처')),
@@ -876,10 +907,37 @@ const Clients = (() => {
     return segments
       .filter(segment => {
         if (options.removeOwner && segment.startsWith('담당자:')) return false;
+        if (options.removeCompanyContact && segment.startsWith('기업내부담당자:')) return false;
         if (options.removePhones && (segment.startsWith('관리자연락처:') || segment.startsWith('대표연락처:'))) return false;
         return true;
       })
       .join(' | ');
+  }
+
+  function toClientApiPayload(formData) {
+    return {
+      name: formData.name,
+      status: formData.status,
+      owner_name: formData.owner_name,
+      phone: formData.phone,
+      email: formData.email,
+      last_contact_at: formData.last_contact_at,
+      next_action_title: formData.next_action_title,
+      next_action_at: formData.next_action_at,
+      memo: buildStructuredMemo(formData.memo, formData.company_contact_name),
+    };
+  }
+
+  function buildStructuredMemo(memo, companyContactName) {
+    const segments = String(memo || '')
+      .split('|')
+      .map(segment => segment.trim())
+      .filter(Boolean)
+      .filter(segment => !segment.startsWith('기업내부담당자:'));
+    if (normalizeText(companyContactName)) {
+      segments.push(`기업내부담당자: ${normalizeText(companyContactName)}`);
+    }
+    return segments.join(' | ') || null;
   }
 
   function normalizeText(value) {
@@ -895,6 +953,10 @@ const Clients = (() => {
   function normalizeEmail(value) {
     const email = normalizeText(value).toLowerCase();
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+  }
+
+  function isKnownInternalAssignee(name) {
+    return INTERNAL_ASSIGNEES.has(normalizeText(name));
   }
 
   function formatPhoneForDisplay(value) {
