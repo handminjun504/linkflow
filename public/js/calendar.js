@@ -11,6 +11,7 @@ const Calendar = (() => {
   let weekTasksLoadedAt = 0;
   let weekTasksCacheKey = '';
   let weekTasksPromise = null;
+  let notificationSessionKey = '';
 
   const HOLIDAY_API_BASE = (() => {
     const explicit = window.__LF_API_BASE__;
@@ -49,6 +50,18 @@ const Calendar = (() => {
 
   function getClientName(clientId) {
     return Clients?.getClientName?.(clientId) || '';
+  }
+
+  function getNotificationSessionKey() {
+    const userId = Auth?.getUser?.()?.id || 'anonymous';
+    const token = Auth?.getToken?.() || '';
+    return `${userId}:${token}`;
+  }
+
+  function resetNotificationState() {
+    notifyTimers.forEach(timerId => clearTimeout(timerId));
+    notifyTimers = [];
+    notificationSessionKey = '';
   }
 
   function getMonthKey(year, month) {
@@ -115,6 +128,16 @@ const Calendar = (() => {
     window.addEventListener('lf:clients-changed', () => {
       populateClientOptions(document.getElementById('evt-client')?.value || '');
       if (document.getElementById('tab-calendar')?.classList.contains('active')) {
+        render();
+        renderTaskSidebar();
+      }
+    });
+    window.addEventListener('lf:auth-changed', event => {
+      resetNotificationState();
+      if (!event.detail?.loggedIn) {
+        events = [];
+        eventsByDate = new Map();
+        weekTasks = [];
         render();
         renderTaskSidebar();
       }
@@ -624,11 +647,12 @@ const Calendar = (() => {
   }
 
   function scheduleNotifications() {
-    notifyTimers.forEach(t => clearTimeout(t));
-    notifyTimers = [];
+    resetNotificationState();
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
     const now = new Date();
+    const sessionKey = getNotificationSessionKey();
+    notificationSessionKey = sessionKey;
     events.forEach(ev => {
       if (ev.remind_minutes == null || !ev.start_time) return;
       const eventTime = new Date(`${ev.start_date}T${ev.start_time}`);
@@ -637,6 +661,7 @@ const Calendar = (() => {
 
       if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
         const timer = setTimeout(() => {
+          if (notificationSessionKey !== sessionKey) return;
           const remindText = ev.remind_minutes === 0 ? '지금' : `${ev.remind_minutes}분 후`;
           new Notification('LinkFlow - 일정 알림', {
             body: `${ev.title} (${remindText} 시작)`,

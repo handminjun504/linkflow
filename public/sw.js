@@ -1,9 +1,10 @@
-const CACHE_NAME = 'linkflow-v9';
+const CACHE_NAME = 'linkflow-v10';
 const STATIC_ASSETS = [
   '/',
   '/css/style.css',
   '/js/auth.js',
   '/js/ui.js',
+  '/js/preferences.js',
   '/js/app.js',
   '/js/clients.js',
   '/js/calendar.js',

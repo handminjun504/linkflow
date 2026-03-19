@@ -9,8 +9,6 @@ const Clients = (() => {
     { id: 'overdue', label: '후속조치 지연' },
   ];
 
-  const STORAGE_STATE_KEY = 'lf_clients_view_state';
-  const STORAGE_CUSTOM_VIEW_KEY = 'lf_clients_custom_view';
   const CLIENTS_TTL = 60 * 1000;
   const STATUS_LABELS = {
     active: '진행중',
@@ -43,15 +41,17 @@ const Clients = (() => {
   let timelineItems = [];
   let bookmarkItems = [];
   let dragClientId = null;
-  let customView = loadCustomView();
+  let customView = null;
   let clientsLoadedAt = 0;
   let clientsLoadPromise = null;
+  let persistStateTimer = null;
 
   function init() {
     if (initialized) return;
     initialized = true;
 
     restoreState();
+    customView = Preferences?.getClientCustomView?.() || null;
     renderFilterPills();
     renderCustomView();
 
@@ -741,9 +741,14 @@ const Clients = (() => {
       filterId,
       searchQuery,
     };
-    localStorage.setItem(STORAGE_CUSTOM_VIEW_KEY, JSON.stringify(customView));
     renderCustomView();
-    UI.showToast('현재 보기를 저장했습니다', 'success');
+    Promise.resolve(Preferences?.setClientCustomView?.(customView))
+      .then(() => {
+        UI.showToast('현재 보기를 저장했습니다', 'success');
+      })
+      .catch(err => {
+        UI.showToast(err?.message || '저장 뷰 저장 실패', 'error');
+      });
   }
 
   function applyCustomView() {
@@ -758,9 +763,14 @@ const Clients = (() => {
 
   function clearCustomView() {
     customView = null;
-    localStorage.removeItem(STORAGE_CUSTOM_VIEW_KEY);
     renderCustomView();
-    UI.showToast('저장 뷰를 삭제했습니다', 'success');
+    Promise.resolve(Preferences?.setClientCustomView?.(null))
+      .then(() => {
+        UI.showToast('저장 뷰를 삭제했습니다', 'success');
+      })
+      .catch(err => {
+        UI.showToast(err?.message || '저장 뷰 삭제 실패', 'error');
+      });
   }
 
   function resetFilters() {
@@ -814,25 +824,22 @@ const Clients = (() => {
   }
 
   function persistState() {
-    localStorage.setItem(STORAGE_STATE_KEY, JSON.stringify({ filterId, searchQuery }));
+    if (persistStateTimer) clearTimeout(persistStateTimer);
+    const nextState = { filterId, searchQuery };
+    persistStateTimer = setTimeout(() => {
+      persistStateTimer = null;
+      if (Preferences?.setClientViewState) {
+        void Preferences.setClientViewState(nextState);
+      }
+    }, 250);
   }
 
   function restoreState() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(STORAGE_STATE_KEY) || '{}');
-      if (raw.filterId) filterId = raw.filterId;
-      if (raw.searchQuery) searchQuery = raw.searchQuery;
-      const searchInput = document.getElementById('clients-search-input');
-      if (searchInput) searchInput.value = searchQuery;
-    } catch {}
-  }
-
-  function loadCustomView() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_CUSTOM_VIEW_KEY) || 'null');
-    } catch {
-      return null;
-    }
+    const raw = Preferences?.getClientViewState?.() || {};
+    if (raw.filterId) filterId = raw.filterId;
+    if (raw.searchQuery) searchQuery = raw.searchQuery;
+    const searchInput = document.getElementById('clients-search-input');
+    if (searchInput) searchInput.value = searchQuery;
   }
 
   function buildSubtitle(client) {

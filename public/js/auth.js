@@ -11,6 +11,15 @@ const Auth = (() => {
     return 'https://bookmark-one-lemon.vercel.app/api';
   })();
 
+  function emitAuthChange() {
+    window.dispatchEvent(new CustomEvent('lf:auth-changed', {
+      detail: {
+        loggedIn: !!_token,
+        user: _user,
+      },
+    }));
+  }
+
   async function request(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (_token) headers['Authorization'] = `Bearer ${_token}`;
@@ -49,6 +58,7 @@ const Auth = (() => {
       localStorage.setItem('device_token', data.device_token);
     }
     startLockTimer();
+    emitAuthChange();
     return data;
   }
 
@@ -65,9 +75,11 @@ const Auth = (() => {
       sessionStorage.setItem('token', _token);
       sessionStorage.setItem('user', JSON.stringify(_user));
       startLockTimer();
+      emitAuthChange();
       return data;
     } catch {
       localStorage.removeItem('device_token');
+      emitAuthChange();
       return null;
     }
   }
@@ -79,6 +91,7 @@ const Auth = (() => {
       _token = token;
       _user = JSON.parse(user);
       startLockTimer();
+      emitAuthChange();
       return true;
     }
     return false;
@@ -94,6 +107,7 @@ const Auth = (() => {
     if (window.electronAPI?.clearPasswordUser) {
       window.electronAPI.clearPasswordUser();
     }
+    emitAuthChange();
     location.reload();
   }
 
@@ -105,6 +119,7 @@ const Auth = (() => {
   function updateUser(updates) {
     _user = { ..._user, ...updates };
     sessionStorage.setItem('user', JSON.stringify(_user));
+    emitAuthChange();
   }
 
   // ── Lock Screen ──

@@ -10,6 +10,9 @@
   let dynTabs = [];
   let dynTabIdCounter = 0;
   let activeDynTabId = null;
+  let urlNotes = {};
+  let dashboardInitialized = false;
+  let preferencesListenerBound = false;
   let healthCheckTimerId = null;
   let healthCheckPromise = null;
   let lastHealthCheckAt = 0;
@@ -67,12 +70,12 @@
     }
 
     if (Auth.restoreSession()) {
-      showDashboard();
+      await showDashboard();
       return;
     }
     const autoResult = await Auth.autoLogin();
     if (autoResult) {
-      showDashboard();
+      await showDashboard();
     } else {
       showLogin();
     }
@@ -157,9 +160,7 @@
         }
       }
 
-      const noteKey = (() => { try { return new URL(tab.url).hostname; } catch { return ''; } })();
-      const noteBtn = document.getElementById('dtf-note-btn');
-      if (noteBtn) noteBtn.classList.toggle('has-note', !!urlNotes[noteKey]);
+      updateUrlNoteBadge(tab);
     }
 
     const activeFrame = framesContainer.querySelector(`${sel}.active`);
@@ -171,10 +172,22 @@
     if (divider) divider.classList.toggle('visible', dynTabs.length > 0);
   }
 
+  function updateUrlNoteBadge(tab = null) {
+    const noteBtn = document.getElementById('dtf-note-btn');
+    if (!noteBtn) return;
+    const currentTab = tab || dynTabs.find(item => item.id === activeDynTabId);
+    if (!currentTab) {
+      noteBtn.classList.remove('has-note');
+      return;
+    }
+    let hostname = '';
+    try { hostname = new URL(currentTab.url).hostname; } catch {}
+    noteBtn.classList.toggle('has-note', !!urlNotes[hostname]);
+  }
+
   let containers = [];
   let splitMode = null;
   let hibernateTimerId = null;
-  const urlNotes = JSON.parse(localStorage.getItem('lf_url_notes') || '{}');
 
   function createDynTab(url, title, containerId) {
     const id = ++dynTabIdCounter;
@@ -589,7 +602,7 @@
     document.getElementById('dashboard-screen').classList.add('hidden');
   }
 
-  function showDashboard() {
+  async function showDashboard() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('dashboard-screen').classList.remove('hidden');
 
@@ -604,29 +617,49 @@
     if (Auth.isAdmin()) adminBtn.style.display = '';
     else adminBtn.style.display = 'none';
 
-    Calendar.init();
-    Clients.init();
-    Memos.init();
+    try {
+      if (window.Preferences?.load) {
+        await Preferences.load({ force: true });
+        urlNotes = Preferences.getUrlNotes();
+      }
+    } catch {}
+
+    if (!dashboardInitialized) {
+      Calendar.init();
+      Clients.init();
+      Memos.init();
+
+      window.addEventListener('lf:clients-changed', () => {
+        if (activeTab === 'bookmarks') renderBookmarks();
+      });
+
+      if (!preferencesListenerBound) {
+        window.addEventListener('lf:preferences-changed', event => {
+          urlNotes = { ...(event.detail?.urlNotes || {}) };
+          updateUrlNoteBadge();
+        });
+        preferencesListenerBound = true;
+      }
+
+      if (isElectron && window.electronAPI?.listExtensions) {
+        renderExtensionToolbar();
+      }
+      if (isElectron && window.electronAPI?.containerList) {
+        window.electronAPI.containerList().then(list => { containers = list || []; });
+      }
+      startHibernation();
+
+      const hashMatch = location.hash.match(/__open_tab=([^&]+)/);
+      if (hashMatch) {
+        const tabUrl = decodeURIComponent(hashMatch[1]);
+        history.replaceState(null, '', location.pathname + location.search);
+        setTimeout(() => createDynTab(tabUrl), 300);
+      }
+
+      dashboardInitialized = true;
+    }
+
     loadData();
-
-    window.addEventListener('lf:clients-changed', () => {
-      if (activeTab === 'bookmarks') renderBookmarks();
-    });
-
-    if (isElectron && window.electronAPI?.listExtensions) {
-      renderExtensionToolbar();
-    }
-    if (isElectron && window.electronAPI?.containerList) {
-      window.electronAPI.containerList().then(list => { containers = list || []; });
-    }
-    startHibernation();
-
-    const hashMatch = location.hash.match(/__open_tab=([^&]+)/);
-    if (hashMatch) {
-      const tabUrl = decodeURIComponent(hashMatch[1]);
-      history.replaceState(null, '', location.pathname + location.search);
-      setTimeout(() => createDynTab(tabUrl), 300);
-    }
   }
 
   async function loadData() {
@@ -1694,20 +1727,26 @@
         const h = pop.dataset.host;
         if (val) urlNotes[h] = val;
         else delete urlNotes[h];
-        localStorage.setItem('lf_url_notes', JSON.stringify(urlNotes));
         pop.classList.add('hidden');
-        const noteBtn = document.getElementById('dtf-note-btn');
-        if (noteBtn) noteBtn.classList.toggle('has-note', !!val);
-        UI.showToast(val ? '메모 저장됨' : '메모 삭제됨', 'success');
+        updateUrlNoteBadge();
+        Promise.resolve(Preferences?.setUrlNote?.(h, val))
+          .then(() => {
+            UI.showToast(val ? '메모 저장됨' : '메모 삭제됨', 'success');
+          })
+          .catch(err => {
+            UI.showToast(err?.message || '메모 저장 실패', 'error');
+          });
       });
       document.getElementById('url-note-del').addEventListener('click', () => {
         const h = pop.dataset.host;
         delete urlNotes[h];
-        localStorage.setItem('lf_url_notes', JSON.stringify(urlNotes));
         document.getElementById('url-note-text').value = '';
         pop.classList.add('hidden');
-        const noteBtn = document.getElementById('dtf-note-btn');
-        if (noteBtn) noteBtn.classList.remove('has-note');
+        updateUrlNoteBadge();
+        Promise.resolve(Preferences?.setUrlNote?.(h, ''))
+          .catch(err => {
+            UI.showToast(err?.message || '메모 삭제 실패', 'error');
+          });
       });
     }
     pop.dataset.host = host;
@@ -1949,7 +1988,7 @@
         document.getElementById('login-password').value,
         document.getElementById('login-remember').checked,
       );
-      showDashboard();
+      await showDashboard();
     } catch (err) {
       errEl.textContent = err.message === 'Invalid credentials' ? '아이디 또는 비밀번호가 올바르지 않습니다' : err.message;
       errEl.classList.remove('hidden');
