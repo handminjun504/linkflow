@@ -30,6 +30,7 @@ const Clients = (() => {
   let selectedClientId = null;
   let selectedClient = null;
   let timelineItems = [];
+  let bookmarkItems = [];
   let dragClientId = null;
   let customView = loadCustomView();
 
@@ -53,14 +54,26 @@ const Clients = (() => {
     document.getElementById('btn-export-clients-csv')?.addEventListener('click', exportCsv);
     document.getElementById('btn-load-client-custom-view')?.addEventListener('click', applyCustomView);
     document.getElementById('btn-clear-client-custom-view')?.addEventListener('click', clearCustomView);
-    document.getElementById('clients-search-input')?.addEventListener('input', e => {
-      searchQuery = e.target.value.trim();
+    document.getElementById('btn-link-client-shortcut')?.addEventListener('click', linkSelectedShortcut);
+    document.getElementById('clients-search-input')?.addEventListener('input', event => {
+      searchQuery = event.target.value.trim();
       persistState();
       render();
     });
     document.getElementById('client-next-actions-list')?.addEventListener('click', handleInboxClick);
+    document.getElementById('client-shortcuts-list')?.addEventListener('click', handleShortcutAction);
 
     document.addEventListener('lf:clients-changed-request', () => load());
+    window.addEventListener('lf:bookmarks-changed', event => {
+      bookmarkItems = Array.isArray(event.detail?.bookmarks)
+        ? event.detail.bookmarks.map(normalizeBookmark)
+        : [];
+      renderShortcuts();
+    });
+
+    if (window.LinkFlowBookmarks?.getAll) {
+      bookmarkItems = window.LinkFlowBookmarks.getAll().map(normalizeBookmark);
+    }
   }
 
   async function load(options = {}) {
@@ -75,7 +88,7 @@ const Clients = (() => {
 
     try {
       const result = await Auth.request('/clients');
-      clients = Array.isArray(result) ? result : [];
+      clients = Array.isArray(result) ? result.map(normalizeClient) : [];
       ensureSelection(options.selectedClientId);
       render();
       notifyClientsChanged();
@@ -100,6 +113,7 @@ const Clients = (() => {
       selectedClient = null;
       timelineItems = [];
       renderDetail();
+      renderShortcuts();
       if (!options.silentList) renderList();
       return;
     }
@@ -112,9 +126,9 @@ const Clients = (() => {
         Auth.request(`/clients/${clientId}`),
         Auth.request(`/clients/${clientId}/timeline`).catch(() => []),
       ]);
-      selectedClient = client;
+      selectedClient = normalizeClient(client);
       timelineItems = Array.isArray(timeline) ? timeline : [];
-      syncClientIntoList(client);
+      syncClientIntoList(selectedClient);
       render();
     } catch (err) {
       UI.showToast(err.message, 'error');
@@ -142,6 +156,7 @@ const Clients = (() => {
     renderInbox();
     renderList();
     renderDetail();
+    renderShortcuts();
   }
 
   function renderFilterPills() {
@@ -192,7 +207,7 @@ const Clients = (() => {
         <div class="client-inbox-item" data-id="${escapeAttr(client.id)}">
           <div class="client-inbox-body">
             <span class="client-inbox-status ${overdue ? 'overdue' : 'today'}">${overdue ? '지연' : '오늘'}</span>
-            <strong>${escapeHtml(client.name)}</strong>
+            <strong>${escapeHtml(getClientDisplayName(client))}</strong>
             <p>${escapeHtml(client.next_action_title || '다음 액션 없음')}</p>
             <span>${formatDate(client.next_action_at)}</span>
           </div>
@@ -225,8 +240,8 @@ const Clients = (() => {
         draggable="${canReorder ? 'true' : 'false'}"
       >
         <span class="client-cell client-cell-name">
-          <strong>${escapeHtml(client.name)}</strong>
-          ${client.next_action_title ? `<small>${escapeHtml(client.next_action_title)}</small>` : ''}
+          <strong>${escapeHtml(getClientDisplayName(client))}</strong>
+          ${buildListMeta(client) ? `<small>${escapeHtml(buildListMeta(client))}</small>` : ''}
         </span>
         <span class="client-cell">
           <span class="client-status-pill ${escapeAttr(client.status || 'active')}">${escapeHtml(getStatusLabel(client.status))}</span>
@@ -285,7 +300,7 @@ const Clients = (() => {
     empty.classList.add('hidden');
     body.classList.remove('hidden');
 
-    document.getElementById('client-detail-name').textContent = client.name || '거래처';
+    document.getElementById('client-detail-name').textContent = getClientDisplayName(client);
     document.getElementById('client-detail-status-badge').textContent = getStatusLabel(client.status);
     document.getElementById('client-detail-status-badge').className = `clients-detail-status-badge ${client.status || 'active'}`;
     document.getElementById('client-detail-subtitle').textContent = buildSubtitle(client);
@@ -308,6 +323,60 @@ const Clients = (() => {
       formatDate(client.last_contact_at) || '기록 없음';
 
     renderTimeline();
+  }
+
+  function renderShortcuts() {
+    const list = document.getElementById('client-shortcuts-list');
+    const count = document.getElementById('client-shortcuts-count');
+    if (!list || !count) return;
+
+    const client = selectedClient || clients.find(item => item.id === selectedClientId) || null;
+    if (!client) {
+      count.textContent = '0';
+      list.innerHTML = '';
+      populateShortcutSelect('');
+      return;
+    }
+
+    const linked = getLinkedBookmarks(client.id);
+    const suggested = getSuggestedBookmarks(client.id);
+    const items = [
+      ...linked.map(bookmark => ({ bookmark, mode: 'linked' })),
+      ...suggested.map(bookmark => ({ bookmark, mode: 'suggested' })),
+    ];
+
+    count.textContent = String(items.length);
+    populateShortcutSelect(client.id);
+
+    if (!items.length) {
+      list.innerHTML = '<div class="client-shortcut-empty"><i class="ri-links-line"></i><p>연결된 바로가기나 공용 거래처 바로가기가 없습니다</p></div>';
+      return;
+    }
+
+    list.innerHTML = items.map(({ bookmark, mode }) => {
+      const editable = isBookmarkEditable(bookmark);
+      const badgeClass = mode === 'linked'
+        ? (bookmark.is_shared ? 'shared' : 'linked')
+        : 'suggested';
+      const badgeLabel = mode === 'linked'
+        ? (bookmark.is_shared ? '공용 연결' : '연결됨')
+        : '공용 바로가기';
+
+      return `
+        <div class="client-shortcut-item">
+          <div class="client-shortcut-main">
+            <strong>${escapeHtml(bookmark.title || '북마크')}</strong>
+            <small>${escapeHtml(getBookmarkHost(bookmark.url) || bookmark.url || '')}</small>
+          </div>
+          <div class="client-shortcut-actions">
+            <span class="client-shortcut-badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
+            <button class="btn btn-outline btn-sm" data-action="open-shortcut" data-id="${escapeAttr(bookmark.id)}"><i class="ri-external-link-line"></i> 열기</button>
+            ${mode === 'suggested' && editable ? `<button class="btn btn-ghost btn-sm" data-action="attach-shortcut" data-id="${escapeAttr(bookmark.id)}"><i class="ri-link"></i> 연결</button>` : ''}
+            ${mode === 'linked' && editable ? `<button class="btn btn-ghost btn-sm" data-action="detach-shortcut" data-id="${escapeAttr(bookmark.id)}"><i class="ri-link-unlink"></i> 해제</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   function renderTimeline() {
@@ -384,7 +453,7 @@ const Clients = (() => {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
-      selectedClient = updated;
+      selectedClient = normalizeClient(updated);
       syncClientIntoList(updated);
       UI.showToast('거래처가 저장되었습니다', 'success');
       render();
@@ -454,6 +523,29 @@ const Clients = (() => {
     selectClient(row.dataset.id);
   }
 
+  async function handleShortcutAction(event) {
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+    const bookmarkId = button.dataset.id;
+    const bookmark = bookmarkItems.find(item => item.id === bookmarkId);
+    if (!bookmark) return;
+
+    if (button.dataset.action === 'open-shortcut') {
+      if (window.LinkFlowBookmarks?.openById) window.LinkFlowBookmarks.openById(bookmarkId);
+      else if (bookmark.url) window.open(bookmark.url, '_blank', 'noopener');
+      return;
+    }
+
+    if (button.dataset.action === 'attach-shortcut' && selectedClientId) {
+      await updateBookmarkClientLink(bookmarkId, selectedClientId, '바로가기를 거래처에 연결했습니다');
+      return;
+    }
+
+    if (button.dataset.action === 'detach-shortcut') {
+      await updateBookmarkClientLink(bookmarkId, null, '바로가기를 거래처에서 해제했습니다');
+    }
+  }
+
   function openCreateModal() {
     document.getElementById('client-form').reset();
     document.getElementById('client-status').value = 'active';
@@ -469,7 +561,7 @@ const Clients = (() => {
     setTimeout(() => {
       Calendar?.openPrefilledEvent?.({
         date: client.next_action_at || todayString(),
-        title: client.next_action_title || `${client.name} 후속 조치`,
+        title: client.next_action_title || `${getClientDisplayName(client)} 후속 조치`,
         clientId: client.id,
         isTask: true,
         description: client.memo || '',
@@ -500,8 +592,10 @@ const Clients = (() => {
         client.name,
         client.owner_name,
         client.memo,
+        client.__rawMemo,
         client.email,
         client.phone,
+        client.__legacy?.code,
         client.next_action_title,
       ]
         .filter(Boolean)
@@ -527,7 +621,7 @@ const Clients = (() => {
   function getClientName(clientId) {
     if (!clientId) return '';
     const client = clients.find(item => item.id === clientId);
-    return client ? client.name : '';
+    return client ? getClientDisplayName(client) : '';
   }
 
   function populateSelect(target, selectedValue = '') {
@@ -537,9 +631,66 @@ const Clients = (() => {
     select.innerHTML =
       '<option value="">없음</option>' +
       clients
-        .map(client => `<option value="${escapeAttr(client.id)}">${escapeHtml(client.name)}</option>`)
+        .map(client => `<option value="${escapeAttr(client.id)}">${escapeHtml(getClientDisplayName(client))}</option>`)
         .join('');
     select.value = currentValue;
+  }
+
+  function populateShortcutSelect(clientId) {
+    const select = document.getElementById('client-shortcut-select');
+    const button = document.getElementById('btn-link-client-shortcut');
+    if (!select || !button) return;
+
+    if (!clientId) {
+      select.innerHTML = '<option value="">연결할 북마크 없음</option>';
+      select.disabled = true;
+      button.disabled = true;
+      return;
+    }
+
+    const linkedIds = new Set(getLinkedBookmarks(clientId).map(bookmark => bookmark.id));
+    const candidates = bookmarkItems.filter(bookmark =>
+      !linkedIds.has(bookmark.id) &&
+      !bookmark.client_id &&
+      isBookmarkEditable(bookmark)
+    );
+    if (!candidates.length) {
+      select.innerHTML = '<option value="">연결할 북마크 없음</option>';
+      select.disabled = true;
+      button.disabled = true;
+      return;
+    }
+
+    select.disabled = false;
+    button.disabled = false;
+    select.innerHTML = '<option value="">북마크 선택</option>' + candidates
+      .map(bookmark => `<option value="${escapeAttr(bookmark.id)}">${escapeHtml(bookmark.title || '북마크')}</option>`)
+      .join('');
+  }
+
+  async function linkSelectedShortcut() {
+    const select = document.getElementById('client-shortcut-select');
+    if (!select || !selectedClientId || !select.value) return;
+    await updateBookmarkClientLink(select.value, selectedClientId, '바로가기를 거래처에 연결했습니다');
+  }
+
+  async function updateBookmarkClientLink(bookmarkId, clientId, successMessage) {
+    try {
+      await Auth.request(`/bookmarks/${bookmarkId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      UI.showToast(successMessage, 'success');
+      if (window.LinkFlowBookmarks?.refresh) {
+        await window.LinkFlowBookmarks.refresh();
+      } else {
+        const index = bookmarkItems.findIndex(item => item.id === bookmarkId);
+        if (index >= 0) bookmarkItems[index] = { ...bookmarkItems[index], client_id: clientId };
+        renderShortcuts();
+      }
+    } catch (err) {
+      UI.showToast(err.message, 'error');
+    }
   }
 
   function saveCurrentView() {
@@ -585,7 +736,7 @@ const Clients = (() => {
     const lines = [
       headers.join(','),
       ...rows.map(client => [
-        client.name || '',
+        getClientDisplayName(client),
         getStatusLabel(client.status),
         client.owner_name || '',
         client.phone || '',
@@ -606,9 +757,10 @@ const Clients = (() => {
   }
 
   function syncClientIntoList(client) {
-    const index = clients.findIndex(item => item.id === client.id);
+    const normalized = normalizeClient(client);
+    const index = clients.findIndex(item => item.id === normalized.id);
     if (index >= 0) {
-      clients[index] = { ...clients[index], ...client };
+      clients[index] = { ...clients[index], ...normalized };
     }
   }
 
@@ -641,8 +793,153 @@ const Clients = (() => {
   }
 
   function buildSubtitle(client) {
-    const parts = [client.owner_name, client.phone, client.email].filter(Boolean);
-    return parts.length ? parts.join(' · ') : '담당자와 연락 정보를 추가해두면 여기서 바로 보입니다.';
+    const parts = [client.owner_name, formatPhoneForDisplay(client.phone), client.email].filter(Boolean);
+    if (parts.length) return parts.join(' · ');
+    if (client.__legacy?.code) return `거래처 코드 ${client.__legacy.code}`;
+    return '담당자와 연락 정보를 추가해두면 여기서 바로 보입니다.';
+  }
+
+  function buildListMeta(client) {
+    if (client.next_action_title) return client.next_action_title;
+    const parts = [];
+    if (client.__legacy?.code) parts.push(`코드 ${client.__legacy.code}`);
+    if (client.email) parts.push(client.email);
+    return parts.join(' · ');
+  }
+
+  function getClientDisplayName(client) {
+    return normalizeText(client?.name) || normalizeEmail(client?.gyeongli_id) || '이름 미지정';
+  }
+
+  function normalizeClient(client) {
+    const base = { ...(client || {}) };
+    const legacy = parseLegacyMemo(base.memo || '');
+    const ownerName = normalizeText(base.owner_name) || legacy.ownerName || legacy.managerName || '';
+    const phone = normalizePhone(base.phone) || legacy.managerPhone || legacy.ceoPhone || '';
+    const email = normalizeEmail(base.email) || normalizeEmail(base.gyeongli_id) || '';
+
+    return {
+      ...base,
+      name: normalizeText(base.name) || normalizeEmail(base.gyeongli_id) || '이름 미지정',
+      owner_name: ownerName || null,
+      phone: phone || null,
+      email: email || null,
+      memo: cleanLegacyMemo(base.memo || '', {
+        removeOwner: Boolean(ownerName),
+        removePhones: Boolean(phone),
+      }) || null,
+      __rawMemo: base.memo || '',
+      __legacy: legacy,
+    };
+  }
+
+  function normalizeBookmark(bookmark) {
+    return { ...(bookmark || {}) };
+  }
+
+  function parseLegacyMemo(memo) {
+    return {
+      code: extractLabeledValue(memo, '코드'),
+      ownerName: extractLabeledValue(memo, '담당자'),
+      managerName: extractContactName(extractLabeledValue(memo, '관리자연락처')),
+      managerPhone: extractPhoneNumber(extractLabeledValue(memo, '관리자연락처')),
+      ceoPhone: extractPhoneNumber(extractLabeledValue(memo, '대표연락처')),
+    };
+  }
+
+  function extractLabeledValue(memo, label) {
+    const pattern = new RegExp(`${escapeRegExp(label)}\\s*:\\s*([^|]+)`);
+    return normalizeText(pattern.exec(String(memo || ''))?.[1] || '');
+  }
+
+  function extractContactName(value) {
+    const raw = normalizeText(value);
+    if (!raw) return '';
+    return normalizeText(
+      raw
+        .replace(/(?:\+?82[- ]?)?(?:0\d{1,2})[- ]?\d{3,4}[- ]?\d{4}/g, '')
+        .replace(/\s+/g, ' ')
+    );
+  }
+
+  function extractPhoneNumber(value) {
+    const match = String(value || '').match(/(?:\+?82[- ]?)?(?:0\d{1,2})[- ]?\d{3,4}[- ]?\d{4}/);
+    return normalizePhone(match?.[0] || '');
+  }
+
+  function cleanLegacyMemo(memo, options = {}) {
+    const segments = String(memo || '')
+      .split('|')
+      .map(segment => segment.trim())
+      .filter(Boolean);
+    if (!segments.length) return '';
+    return segments
+      .filter(segment => {
+        if (options.removeOwner && segment.startsWith('담당자:')) return false;
+        if (options.removePhones && (segment.startsWith('관리자연락처:') || segment.startsWith('대표연락처:'))) return false;
+        return true;
+      })
+      .join(' | ');
+  }
+
+  function normalizeText(value) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    return text || '';
+  }
+
+  function normalizePhone(value) {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits || '';
+  }
+
+  function normalizeEmail(value) {
+    const email = normalizeText(value).toLowerCase();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+  }
+
+  function formatPhoneForDisplay(value) {
+    const digits = normalizePhone(value);
+    if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    if (digits.length === 10 && digits.startsWith('02')) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+    if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    if (digits.length === 9 && digits.startsWith('02')) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    return value || '';
+  }
+
+  function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function getLinkedBookmarks(clientId) {
+    return bookmarkItems.filter(bookmark => bookmark.client_id === clientId);
+  }
+
+  function getSuggestedBookmarks(clientId) {
+    const linkedIds = new Set(getLinkedBookmarks(clientId).map(bookmark => bookmark.id));
+    return bookmarkItems.filter(bookmark => {
+      if (linkedIds.has(bookmark.id) || bookmark.client_id) return false;
+      return isCommonClientShortcut(bookmark);
+    });
+  }
+
+  function isCommonClientShortcut(bookmark) {
+    const haystack = [bookmark.title, bookmark.description].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes('거래처');
+  }
+
+  function isBookmarkEditable(bookmark) {
+    const userId = Auth.getUser?.()?.sub;
+    if (!bookmark) return false;
+    if (!bookmark.is_shared) return true;
+    return !!userId && bookmark.user_id === userId;
+  }
+
+  function getBookmarkHost(url) {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url || '';
+    }
   }
 
   function getFilterLabel(id) {

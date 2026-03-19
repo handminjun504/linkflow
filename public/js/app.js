@@ -11,6 +11,25 @@
   let dynTabIdCounter = 0;
   let activeDynTabId = null;
 
+  function getAllBookmarks() {
+    return [...bookmarks, ...sharedBookmarks].map(bookmark => ({ ...bookmark }));
+  }
+
+  function notifyBookmarksChanged() {
+    window.dispatchEvent(new CustomEvent('lf:bookmarks-changed', {
+      detail: { bookmarks: getAllBookmarks() },
+    }));
+  }
+
+  window.LinkFlowBookmarks = {
+    getAll: () => getAllBookmarks(),
+    openById(id) {
+      const bookmark = [...bookmarks, ...sharedBookmarks].find(item => item.id === id);
+      if (bookmark) openInBrowser(bookmark);
+    },
+    refresh: () => loadData(),
+  };
+
   // ═══════ Init ═══════
 
   async function init() {
@@ -597,6 +616,7 @@
       categories = [...catData.own, ...(catData.shared || [])];
       bookmarks = bmData.own || [];
       sharedBookmarks = bmData.shared || [];
+      notifyBookmarksChanged();
       renderCategoryTabs();
       renderBookmarks();
       checkHealthAll();

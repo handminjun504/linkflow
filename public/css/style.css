@@ -1037,11 +1037,18 @@ textarea.select-input {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  overflow: hidden;
 }
 
 .client-cell-name strong {
+  display: block;
   font-size: 14px;
   color: var(--text);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .client-cell-name small {
@@ -1180,6 +1187,113 @@ textarea.select-input {
 .client-summary-card strong {
   font-size: 14px;
   color: var(--text);
+}
+
+.clients-shortcuts-section {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--white);
+  margin-bottom: 18px;
+}
+
+.client-shortcuts-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.client-shortcuts-toolbar .select-input {
+  flex: 1;
+}
+
+.client-shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.client-shortcut-item,
+.client-shortcut-empty {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card-bg);
+}
+
+.client-shortcut-item {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.client-shortcut-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.client-shortcut-main strong {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.client-shortcut-main small {
+  font-size: 12px;
+  color: var(--text-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-shortcut-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-shortcut-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--primary-bg);
+  color: var(--text);
+}
+
+.client-shortcut-badge.suggested {
+  background: #f2f4f7;
+  color: #667085;
+}
+
+.client-shortcut-badge.linked {
+  background: #eef7f2;
+  color: #237a4d;
+}
+
+.client-shortcut-badge.shared {
+  background: #fff4e6;
+  color: #b06a00;
+}
+
+.client-shortcut-empty {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.client-shortcut-empty i {
+  display: block;
+  font-size: 28px;
+  margin-bottom: 8px;
 }
 
 .clients-timeline-section {
@@ -1604,6 +1718,14 @@ textarea.select-input {
   }
   .clients-summary-grid {
     grid-template-columns: 1fr;
+  }
+  .client-shortcuts-toolbar,
+  .client-shortcut-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .client-shortcut-actions {
+    justify-content: flex-start;
   }
 }
 
