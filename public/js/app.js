@@ -17,8 +17,14 @@
   let healthCheckPromise = null;
   let lastHealthCheckAt = 0;
   let clientsWarmupTimerId = null;
+  let adminUsers = [];
+  let adminTeams = [];
+  let editingOrgUserId = null;
 
   const HEALTH_CHECK_TTL = 5 * 60 * 1000;
+  const SUBTEAM_OPTIONS_BY_TEAM = {
+    '경리팀': ['원격경리', '정책경리'],
+  };
 
   function debounce(fn, wait = 120) {
     let timerId = null;
@@ -1155,28 +1161,42 @@
   async function openAdmin() {
     UI.showPanel('admin-panel');
     try {
-      const users = await Auth.request('/admin/users');
-      renderAdminUsers(users);
+      const [users, teams] = await Promise.all([
+        Auth.request('/admin/users'),
+        Auth.request('/admin/teams').catch(() => []),
+      ]);
+      adminUsers = Array.isArray(users) ? users : [];
+      adminTeams = Array.isArray(teams) ? teams : [];
+      renderAdminUsers(adminUsers, adminTeams);
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
-  function renderAdminUsers(users) {
+  function renderAdminUsers(users, teams = adminTeams) {
     const list = document.getElementById('admin-user-list');
+    const teamNameById = new Map((teams || []).map(team => [team.id, team.name]));
     list.innerHTML = users.map(u => `
       <div class="user-item">
         <div class="user-item-avatar">${(u.display_name || u.username).charAt(0).toUpperCase()}</div>
         <div class="user-item-info">
           <div class="user-name">${escapeHtml(u.display_name)}${u.is_admin ? '<span class="admin-badge">관리자</span>' : ''}</div>
           <div class="user-id">${escapeHtml(u.username)}</div>
+          <div class="user-org">
+            <span class="user-org-badge"><i class="ri-team-line"></i>${escapeHtml(teamNameById.get(u.team_id) || '팀 없음')}</span>
+            ${u.subteam_name ? `<span class="user-org-badge"><i class="ri-git-branch-line"></i>${escapeHtml(u.subteam_name)}</span>` : ''}
+          </div>
         </div>
         <div class="user-item-actions">
           ${!u.is_admin ? `
+            <button class="icon-btn btn-user-org" data-id="${u.id}" title="조직 설정"><i class="ri-team-line"></i></button>
             <button class="icon-btn btn-reset-pw" data-id="${u.id}" data-name="${escapeHtml(u.display_name)}" title="비밀번호 초기화"><i class="ri-key-line"></i></button>
             <button class="icon-btn btn-delete-user" data-id="${u.id}" data-name="${escapeHtml(u.display_name)}" title="삭제"><i class="ri-delete-bin-line"></i></button>
           ` : ''}
         </div>
       </div>`).join('');
 
+    list.querySelectorAll('.btn-user-org').forEach(btn => {
+      btn.addEventListener('click', () => openUserOrgModal(btn.dataset.id));
+    });
     list.querySelectorAll('.btn-reset-pw').forEach(btn => {
       btn.addEventListener('click', async () => {
         const ok = await UI.confirm('비밀번호 초기화', `${btn.dataset.name}의 비밀번호를 0000으로 초기화하시겠습니까?`);
@@ -1202,12 +1222,81 @@
     });
   }
 
+  function getTeamById(teamId) {
+    return adminTeams.find(team => team.id === teamId) || null;
+  }
+
+  function getSubteamOptions(teamId) {
+    const team = getTeamById(teamId);
+    if (!team) return [];
+    return SUBTEAM_OPTIONS_BY_TEAM[team.name] || [];
+  }
+
+  function populateTeamSelect(selectId, selectedId = '') {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    select.innerHTML = '<option value="">없음</option>' + adminTeams
+      .map(team => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.name)}</option>`)
+      .join('');
+    select.value = selectedId || '';
+  }
+
+  function syncSubteamSelect(teamSelectId, subteamSelectId, wrapId, selectedSubteam = '') {
+    const teamSelect = document.getElementById(teamSelectId);
+    const subteamSelect = document.getElementById(subteamSelectId);
+    const wrap = document.getElementById(wrapId);
+    if (!teamSelect || !subteamSelect || !wrap) return;
+
+    const options = getSubteamOptions(teamSelect.value);
+    if (!options.length) {
+      wrap.classList.add('hidden');
+      subteamSelect.innerHTML = '<option value="">없음</option>';
+      subteamSelect.value = '';
+      return;
+    }
+
+    wrap.classList.remove('hidden');
+    subteamSelect.innerHTML = '<option value="">없음</option>' + options
+      .map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`)
+      .join('');
+    subteamSelect.value = options.includes(selectedSubteam) ? selectedSubteam : '';
+  }
+
+  function bindUserOrgFields(teamSelectId, subteamSelectId, wrapId) {
+    const teamSelect = document.getElementById(teamSelectId);
+    if (!teamSelect || teamSelect.dataset.bound === 'true') return;
+    teamSelect.dataset.bound = 'true';
+    teamSelect.addEventListener('change', () => {
+      syncSubteamSelect(teamSelectId, subteamSelectId, wrapId);
+    });
+  }
+
+  function openCreateUserModal() {
+    document.getElementById('user-form').reset();
+    populateTeamSelect('new-user-team');
+    syncSubteamSelect('new-user-team', 'new-user-subteam', 'new-user-subteam-wrap');
+    UI.openModal('user-modal');
+  }
+
+  function openUserOrgModal(userId) {
+    const user = adminUsers.find(item => item.id === userId);
+    if (!user) return;
+    editingOrgUserId = userId;
+    document.getElementById('user-org-id').value = userId;
+    document.getElementById('user-org-modal-title').textContent = `${user.display_name} 조직 설정`;
+    populateTeamSelect('user-org-team', user.team_id || '');
+    syncSubteamSelect('user-org-team', 'user-org-subteam', 'user-org-subteam-wrap', user.subteam_name || '');
+    UI.openModal('user-org-modal');
+  }
+
   async function createUser(e) {
     e.preventDefault();
     const data = {
       username: document.getElementById('new-user-id').value.trim(),
       password: document.getElementById('new-user-pw').value,
       display_name: document.getElementById('new-user-name').value.trim(),
+      team_id: document.getElementById('new-user-team').value || null,
+      subteam_name: document.getElementById('new-user-subteam').value || null,
     };
     try {
       await Auth.request('/admin/users', { method: 'POST', body: JSON.stringify(data) });
@@ -1216,6 +1305,25 @@
       document.getElementById('user-form').reset();
       openAdmin();
     } catch (err) { UI.showToast(err.message, 'error'); }
+  }
+
+  async function saveUserOrganization(e) {
+    e.preventDefault();
+    const userId = document.getElementById('user-org-id').value || editingOrgUserId;
+    if (!userId) return;
+    const payload = {
+      team_id: document.getElementById('user-org-team').value || null,
+      subteam_name: document.getElementById('user-org-subteam').value || null,
+    };
+    try {
+      await Auth.request(`/admin/users/${userId}/team`, { method: 'PATCH', body: JSON.stringify(payload) });
+      UI.showToast('조직 정보가 저장되었습니다', 'success');
+      UI.closeModal('user-org-modal');
+      editingOrgUserId = null;
+      openAdmin();
+    } catch (err) {
+      UI.showToast(err.message, 'error');
+    }
   }
 
   async function changePassword(e) {
@@ -2035,7 +2143,10 @@
     document.getElementById('bookmark-form').addEventListener('submit', saveBookmark);
     document.getElementById('category-form').addEventListener('submit', saveCategory);
     document.getElementById('user-form').addEventListener('submit', createUser);
+    document.getElementById('user-org-form').addEventListener('submit', saveUserOrganization);
     document.getElementById('pw-form').addEventListener('submit', changePassword);
+    bindUserOrgFields('new-user-team', 'new-user-subteam', 'new-user-subteam-wrap');
+    bindUserOrgFields('user-org-team', 'user-org-subteam', 'user-org-subteam-wrap');
 
     // Header buttons
     document.getElementById('btn-add-bookmark').addEventListener('click', openAddBookmark);
@@ -2052,7 +2163,7 @@
     document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
     document.getElementById('btn-save-lock').addEventListener('click', saveLockSettings);
     document.getElementById('btn-add-category').addEventListener('click', openAddCategory);
-    document.getElementById('btn-create-user').addEventListener('click', () => UI.openModal('user-modal'));
+    document.getElementById('btn-create-user').addEventListener('click', openCreateUserModal);
     document.getElementById('btn-change-pw').addEventListener('click', () => {
       document.getElementById('user-dropdown').classList.add('hidden');
       document.getElementById('pw-form').reset();
