@@ -10,6 +10,20 @@
   let dynTabs = [];
   let dynTabIdCounter = 0;
   let activeDynTabId = null;
+  let healthCheckTimerId = null;
+  let healthCheckPromise = null;
+  let lastHealthCheckAt = 0;
+  let clientsWarmupTimerId = null;
+
+  const HEALTH_CHECK_TTL = 5 * 60 * 1000;
+
+  function debounce(fn, wait = 120) {
+    let timerId = null;
+    return (...args) => {
+      if (timerId) clearTimeout(timerId);
+      timerId = setTimeout(() => fn(...args), wait);
+    };
+  }
 
   function getAllBookmarks() {
     return [...bookmarks, ...sharedBookmarks].map(bookmark => ({ ...bookmark }));
@@ -19,6 +33,14 @@
     window.dispatchEvent(new CustomEvent('lf:bookmarks-changed', {
       detail: { bookmarks: getAllBookmarks() },
     }));
+  }
+
+  function scheduleClientsWarmup(delay = 120) {
+    if (clientsWarmupTimerId) clearTimeout(clientsWarmupTimerId);
+    clientsWarmupTimerId = setTimeout(() => {
+      clientsWarmupTimerId = null;
+      Clients.load({ silent: true });
+    }, delay);
   }
 
   window.LinkFlowBookmarks = {
@@ -619,8 +641,8 @@
       notifyBookmarksChanged();
       renderCategoryTabs();
       renderBookmarks();
-      checkHealthAll();
-      await Clients.load({ silent: true });
+      scheduleHealthCheck({ force: true, delay: 250 });
+      scheduleClientsWarmup(120);
     } catch (e) {
       UI.showToast('데이터 로딩 실패: ' + e.message, 'error');
     }
@@ -822,13 +844,41 @@
 
   // ═══════ Health Check ═══════
 
-  async function checkHealthAll() {
+  function scheduleHealthCheck(options = {}) {
+    const force = !!options.force;
+    const delay = Number(options.delay) || 0;
+
+    if (healthCheckTimerId) {
+      clearTimeout(healthCheckTimerId);
+      healthCheckTimerId = null;
+    }
+
+    const run = () => {
+      const isFresh = !force && lastHealthCheckAt && (Date.now() - lastHealthCheckAt) < HEALTH_CHECK_TTL;
+      if (isFresh || healthCheckPromise) return;
+      healthCheckPromise = checkHealthAll(force).finally(() => {
+        healthCheckPromise = null;
+      });
+    };
+
+    if (delay > 0) {
+      healthCheckTimerId = setTimeout(() => {
+        healthCheckTimerId = null;
+        run();
+      }, delay);
+      return;
+    }
+
+    run();
+  }
+
+  async function checkHealthAll(force = false) {
+    if (!force && lastHealthCheckAt && (Date.now() - lastHealthCheckAt) < HEALTH_CHECK_TTL) return;
     const urlMap = {};
     [...bookmarks, ...sharedBookmarks].forEach(b => {
       const url = b.health_check_url || b.url;
       if (url) { urlMap[b.id] = url; healthCache[b.id] = 'checking'; }
     });
-    renderBookmarks();
     if (Object.keys(urlMap).length === 0) return;
     try {
       const result = await Auth.request('/health/batch', {
@@ -838,7 +888,8 @@
     } catch {
       Object.keys(urlMap).forEach(id => { healthCache[id] = 'unknown'; });
     }
-    renderBookmarks();
+    lastHealthCheckAt = Date.now();
+    if (activeTab === 'bookmarks') renderBookmarks();
   }
 
   // ═══════ Bookmark CRUD ═══════
@@ -2043,7 +2094,8 @@
     }, { passive: false });
 
     // Search
-    document.getElementById('search-input').addEventListener('input', renderBookmarks);
+    const renderBookmarksDebounced = debounce(renderBookmarks, 90);
+    document.getElementById('search-input').addEventListener('input', renderBookmarksDebounced);
 
     // Lock
     document.getElementById('lock-pin-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleUnlock(); });
@@ -2063,7 +2115,7 @@
 
   setInterval(() => {
     if (Auth.isLoggedIn() && document.getElementById('lock-screen').classList.contains('hidden')) {
-      if (activeTab === 'bookmarks') checkHealthAll();
+      if (activeTab === 'bookmarks') scheduleHealthCheck();
     }
   }, 60000);
 })();

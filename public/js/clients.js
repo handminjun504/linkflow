@@ -11,6 +11,7 @@ const Clients = (() => {
 
   const STORAGE_STATE_KEY = 'lf_clients_view_state';
   const STORAGE_CUSTOM_VIEW_KEY = 'lf_clients_custom_view';
+  const CLIENTS_TTL = 60 * 1000;
   const STATUS_LABELS = {
     active: '진행중',
     pending: '대기',
@@ -43,6 +44,8 @@ const Clients = (() => {
   let bookmarkItems = [];
   let dragClientId = null;
   let customView = loadCustomView();
+  let clientsLoadedAt = 0;
+  let clientsLoadPromise = null;
 
   function init() {
     if (initialized) return;
@@ -96,25 +99,46 @@ const Clients = (() => {
       return [];
     }
 
-    try {
-      const result = await Auth.request('/clients');
-      clients = Array.isArray(result) ? result.map(normalizeClient) : [];
+    const force = !!options.force;
+    const isFresh = clients.length > 0 && (Date.now() - clientsLoadedAt) < CLIENTS_TTL;
+    if (!force && isFresh) {
       ensureSelection(options.selectedClientId);
       render();
       notifyClientsChanged();
-      if (selectedClientId) {
-        await selectClient(selectedClientId, { silentList: true });
+      if (selectedClientId && !selectedClient) {
+        void selectClient(selectedClientId, { silentList: true });
       }
       return clients;
-    } catch (err) {
-      clients = [];
-      selectedClient = null;
-      timelineItems = [];
-      render();
-      notifyClientsChanged();
-      if (!options.silent) UI.showToast(err.message, 'error');
-      return [];
     }
+
+    if (clientsLoadPromise) return clientsLoadPromise;
+
+    clientsLoadPromise = (async () => {
+      try {
+        const result = await Auth.request('/clients');
+        clients = Array.isArray(result) ? result.map(normalizeClient) : [];
+        clientsLoadedAt = Date.now();
+        ensureSelection(options.selectedClientId);
+        render();
+        notifyClientsChanged();
+        if (selectedClientId) {
+          await selectClient(selectedClientId, { silentList: true });
+        }
+        return clients;
+      } catch (err) {
+        clients = [];
+        selectedClient = null;
+        timelineItems = [];
+        render();
+        notifyClientsChanged();
+        if (!options.silent) UI.showToast(err.message, 'error');
+        return [];
+      } finally {
+        clientsLoadPromise = null;
+      }
+    })();
+
+    return clientsLoadPromise;
   }
 
   async function selectClient(clientId, options = {}) {
@@ -437,9 +461,10 @@ const Clients = (() => {
         method: 'POST',
         body: JSON.stringify(toClientApiPayload(payload)),
       });
+      clientsLoadedAt = Date.now();
       UI.closeModal('client-modal');
       UI.showToast('거래처가 추가되었습니다', 'success');
-      await load({ selectedClientId: created.id });
+      await load({ selectedClientId: created.id, force: true });
       await selectClient(created.id);
     } catch (err) {
       UI.showToast(err.message, 'error');
@@ -467,6 +492,7 @@ const Clients = (() => {
         body: JSON.stringify(toClientApiPayload(payload)),
       });
       selectedClient = normalizeClient(updated);
+      clientsLoadedAt = Date.now();
       syncClientIntoList(updated);
       UI.showToast('거래처가 저장되었습니다', 'success');
       render();
@@ -489,6 +515,7 @@ const Clients = (() => {
       selectedClient = null;
       timelineItems = [];
       clients = clients.filter(client => client.id !== removedId);
+      clientsLoadedAt = Date.now();
       ensureSelection();
       render();
       notifyClientsChanged();
@@ -519,7 +546,7 @@ const Clients = (() => {
       });
     } catch (err) {
       UI.showToast(err.message || '순서 저장 실패', 'error');
-      await load({ selectedClientId });
+      await load({ selectedClientId, force: true });
     }
   }
 
