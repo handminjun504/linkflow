@@ -104,6 +104,32 @@ const Calendar = (() => {
     return getActiveCalendarView();
   }
 
+  function isTeamSharedEvent(event) {
+    return getEventCalendarType(event) === 'work' && Boolean(event?.team_id || event?.is_team_shared);
+  }
+
+  function getEventScopeMeta(event) {
+    const calendarType = getEventCalendarType(event);
+    if (calendarType !== 'work') {
+      return {
+        label: '개인 일정',
+        badgeLabel: '개인 일정',
+        badgeIcon: 'ri-user-line',
+        badgeClass: '',
+        barClass: '',
+      };
+    }
+
+    const isShared = isTeamSharedEvent(event);
+    return {
+      label: isShared ? '팀 공유 일정' : '업무 일정',
+      badgeLabel: isShared ? '팀 공유' : '업무 일정',
+      badgeIcon: isShared ? 'ri-team-line' : 'ri-briefcase-4-line',
+      badgeClass: ' work',
+      barClass: isShared ? ' team-event' : '',
+    };
+  }
+
   function invalidateCalendarCaches() {
     monthEventCache.clear();
     weekTasksLoadedAt = 0;
@@ -157,9 +183,12 @@ const Calendar = (() => {
   function syncCalendarTypeControls(selectedType = null) {
     const select = document.getElementById('evt-calendar-type');
     const hint = document.getElementById('evt-calendar-hint');
+    const shareCheckbox = document.getElementById('evt-share-with-team');
+    const shareWrap = document.getElementById('evt-share-with-team-wrap');
+    const shareHelp = document.getElementById('evt-share-with-team-help');
     const taskCheckbox = document.getElementById('evt-is-task');
     const taskWrap = document.getElementById('evt-is-task-wrap');
-    if (!select || !hint || !taskCheckbox || !taskWrap) return;
+    if (!select || !hint || !shareCheckbox || !shareWrap || !shareHelp || !taskCheckbox || !taskWrap) return;
 
     const user = Auth?.getUser?.() || {};
     const hasTeam = Boolean(user.team_id);
@@ -176,11 +205,28 @@ const Calendar = (() => {
       taskCheckbox.checked = false;
     }
 
+    const canShareWithTeam = nextType === 'work' && hasTeam;
+    shareWrap.style.display = nextType === 'work' ? '' : 'none';
+    shareHelp.style.display = nextType === 'work' ? '' : 'none';
+    shareCheckbox.disabled = !canShareWithTeam;
+    shareWrap.classList.toggle('is-disabled', !canShareWithTeam);
+    if (!canShareWithTeam) {
+      shareCheckbox.checked = false;
+    }
+
     hint.textContent = nextType === 'work'
       ? (hasTeam
-        ? '같은 팀 계정에게 바로 공유됩니다.'
+        ? '업무 일정으로 분류됩니다. 팀 공유는 아래에서 직접 선택합니다.'
         : '팀이 지정된 계정만 업무 일정으로 등록할 수 있습니다.')
       : '본인 계정에서만 보이는 개인 일정입니다.';
+
+    if (nextType === 'work') {
+      shareHelp.textContent = hasTeam
+        ? (shareCheckbox.checked
+          ? '같은 팀 계정이 이 일정을 함께 확인할 수 있습니다.'
+          : '기본값은 비공유입니다. 체크하면 같은 팀 계정과 공유됩니다.')
+        : '팀이 지정된 계정만 팀 공유를 사용할 수 있습니다.';
+    }
   }
 
   function getEventCalendarType(event) {
@@ -205,6 +251,9 @@ const Calendar = (() => {
     document.getElementById('evt-delete-btn').addEventListener('click', deleteCurrentEvent);
     document.getElementById('evt-calendar-type')?.addEventListener('change', event => {
       syncCalendarTypeControls(event.target.value);
+    });
+    document.getElementById('evt-share-with-team')?.addEventListener('change', () => {
+      syncCalendarTypeControls(document.getElementById('evt-calendar-type')?.value);
     });
     bindDayEventsModal();
     document.getElementById('calendar-grid')?.addEventListener('click', event => {
@@ -423,8 +472,9 @@ const Calendar = (() => {
           const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
           const clientName = getClientName(ev.client_id);
           const doneClass = ev.is_done ? ' cal-event-done' : '';
-          const scopeClass = getEventCalendarType(ev) === 'work' ? ' team-event' : '';
-          const scopeLabel = getEventCalendarType(ev) === 'work' ? '팀 공유' : '개인';
+          const scope = getEventScopeMeta(ev);
+          const scopeClass = scope.barClass;
+          const scopeLabel = scope.label;
           html += `<div class="cal-event-bar${doneClass}${scopeClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${scopeLabel} · ${time}${ev.title}${clientName ? ` · ${clientName}` : ''}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>`;
         });
         if (dayEvents.length > 3) {
@@ -531,9 +581,8 @@ const Calendar = (() => {
         const time = t.start_time ? t.start_time.substring(0, 5) : '';
         const note = (t.description || '').trim();
         const clientName = getClientName(t.client_id);
-        const calendarBadge = getEventCalendarType(t) === 'work'
-          ? '<span class="task-item-badge work"><i class="ri-team-line"></i> 팀 공유</span>'
-          : '<span class="task-item-badge"><i class="ri-user-line"></i> 개인</span>';
+        const scope = getEventScopeMeta(t);
+        const calendarBadge = `<span class="task-item-badge${scope.badgeClass}"><i class="${scope.badgeIcon}"></i> ${scope.badgeLabel}</span>`;
         const dateAttr = (t._recurring || t.recurrence_type) ? ` data-date="${t.start_date}"` : '';
         html += `<div class="task-item${doneClass}">
           <input type="checkbox" class="task-check" data-id="${t.id}"${dateAttr} ${checked} />
@@ -602,6 +651,7 @@ const Calendar = (() => {
     document.getElementById('evt-skip-weekend').checked = true;
     document.getElementById('evt-recurrence-day').value = '';
     document.getElementById('evt-client').value = '';
+    document.getElementById('evt-share-with-team').checked = false;
     document.getElementById('evt-calendar-type').value = getCurrentCalendarTypeForForm();
     syncCalendarTypeControls(getCurrentCalendarTypeForForm());
     resetColorPicker('evt-color-picker', DEFAULT_EVENT_COLOR);
@@ -650,7 +700,7 @@ const Calendar = (() => {
       const note = (ev.description || '').trim();
       const clientName = getClientName(ev.client_id);
       const doneClass = ev.is_done ? ' day-event-done' : '';
-      const isWork = getEventCalendarType(ev) === 'work';
+      const scope = getEventScopeMeta(ev);
       return `<button type="button" class="day-event-item${doneClass}" data-id="${ev.id}">
         <span class="day-event-color" style="background:${ev.color || DEFAULT_EVENT_COLOR}"></span>
         <div class="day-event-main">
@@ -659,7 +709,7 @@ const Calendar = (() => {
             <span class="day-event-title">${escapeHtml(ev.title)}</span>
           </div>
           <div class="day-event-meta">
-            <span class="day-event-badge ${isWork ? 'work' : ''}"><i class="${isWork ? 'ri-team-line' : 'ri-user-line'}"></i>${isWork ? '업무 일정' : '개인 일정'}</span>
+            <span class="day-event-badge${scope.badgeClass}"><i class="${scope.badgeIcon}"></i>${scope.badgeLabel}</span>
             ${clientName ? `<span class="day-event-badge"><i class="ri-briefcase-4-line"></i>${escapeHtml(clientName)}</span>` : ''}
           </div>
           ${note ? `<div class="day-event-note">${escapeHtml(note)}</div>` : ''}
@@ -703,6 +753,7 @@ const Calendar = (() => {
     document.getElementById('evt-recurrence-day').value = hasMonthlyAnchor ? (ev.recurrence_day || new Date(ev.start_date + 'T00:00:00').getDate()) : '';
     document.getElementById('evt-skip-weekend').checked = recurrenceType === 'daily' ? true : (ev.skip_weekend || false);
     document.getElementById('evt-calendar-type').value = getEventCalendarType(ev);
+    document.getElementById('evt-share-with-team').checked = isTeamSharedEvent(ev);
     syncCalendarTypeControls(getEventCalendarType(ev));
     document.getElementById('evt-is-task').checked = ev.is_task || false;
     document.getElementById('evt-client').value = ev.client_id || '';
@@ -722,6 +773,8 @@ const Calendar = (() => {
     const id = document.getElementById('evt-edit-id').value;
     const remindVal = document.getElementById('evt-remind').value;
     const recurrence = normalizeRecurrenceType(document.getElementById('evt-recurrence').value);
+    const calendarType = document.getElementById('evt-calendar-type').value || getCurrentCalendarTypeForForm();
+    const shareWithTeam = calendarType === 'work' && document.getElementById('evt-share-with-team').checked;
 
     let startDate = document.getElementById('evt-date').value;
     let recurrenceDay = null;
@@ -752,8 +805,9 @@ const Calendar = (() => {
       recurrence_end: recurrence ? (document.getElementById('evt-recurrence-end').value || null) : null,
       recurrence_interval: 1,
       recurrence_day: recurrenceDay,
-      calendar_type: document.getElementById('evt-calendar-type').value || getCurrentCalendarTypeForForm(),
-      is_task: document.getElementById('evt-calendar-type').value === 'work' && document.getElementById('evt-is-task').checked,
+      calendar_type: calendarType,
+      share_with_team: shareWithTeam,
+      is_task: calendarType === 'work' && document.getElementById('evt-is-task').checked,
       skip_weekend: recurrence === 'daily' ? true : (recurrence ? document.getElementById('evt-skip-weekend').checked : false),
       client_id: document.getElementById('evt-client').value || null,
     };
@@ -839,6 +893,7 @@ const Calendar = (() => {
     document.getElementById('evt-is-task').checked = !!prefill.isTask;
     const prefillType = prefill.calendarType || (prefill.isTask ? 'work' : getCurrentCalendarTypeForForm());
     document.getElementById('evt-calendar-type').value = prefillType;
+    document.getElementById('evt-share-with-team').checked = !!prefill.shareWithTeam;
     syncCalendarTypeControls(prefillType);
     if (prefill.isTask && prefillType === 'work') {
       document.getElementById('evt-is-task').checked = true;

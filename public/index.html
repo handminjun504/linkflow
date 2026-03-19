@@ -528,9 +528,14 @@
               <option value="work">업무 일정</option>
               <option value="personal">개인 일정</option>
             </select>
-            <div class="field-help" id="evt-calendar-hint">업무 일정으로 분류되며 자동으로 팀에 공유되지는 않습니다.</div>
+            <div class="field-help" id="evt-calendar-hint">업무 일정으로 분류됩니다. 팀 공유는 아래에서 직접 선택합니다.</div>
           </div>
         </div>
+        <label class="checkbox-label" id="evt-share-with-team-wrap" style="margin-bottom:4px">
+          <input type="checkbox" id="evt-share-with-team" />
+          <span>팀 공유하기</span>
+        </label>
+        <div class="field-help" id="evt-share-with-team-help" style="margin-bottom:8px">기본값은 비공유입니다. 체크하면 같은 팀 계정과 공유됩니다.</div>
         <div class="form-row">
           <div class="form-col"><label class="field-label">반복</label>
             <select id="evt-recurrence" class="select-input">
