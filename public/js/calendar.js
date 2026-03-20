@@ -10,6 +10,8 @@ const Calendar = (() => {
   let holidayRequests = {};
   let monthEventCache = new Map();
   let monthLoadToken = 0;
+  let monthLoadPromise = null;
+  let monthLoadPromiseKey = '';
   let weekTasksLoadedAt = 0;
   let weekTasksCacheKey = '';
   let weekTasksPromise = null;
@@ -189,6 +191,7 @@ const Calendar = (() => {
   function filterEventsForSelectedStaff(items) {
     const rows = Array.isArray(items) ? items : [];
     if (!shouldShowStaffFilters()) return rows.slice();
+    if (!staffSelectionInitialized) return rows.slice();
     return rows.filter(isEventVisibleForSelectedStaff);
   }
 
@@ -220,6 +223,8 @@ const Calendar = (() => {
 
   function invalidateCalendarCaches() {
     monthEventCache.clear();
+    monthLoadPromise = null;
+    monthLoadPromiseKey = '';
     weekTasksLoadedAt = 0;
     weekTasksCacheKey = '';
     weekTasksPromiseKey = '';
@@ -632,10 +637,16 @@ const Calendar = (() => {
         return [];
       }
 
-      if (shouldShowStaffFilters()) {
-        await loadTeamMembers({ force });
-      } else {
-        renderStaffFilters();
+      const teamMembersPromise = shouldShowStaffFilters()
+        ? loadTeamMembers({ force }).then(() => {
+            applyCalendarFilters({ renderSidebar: !skipWeekTasks });
+            return teamMembers;
+          }).catch(() => [])
+        : Promise.resolve([]);
+      if (!shouldShowStaffFilters()) renderStaffFilters();
+
+      if (!skipWeekTasks) {
+        void loadWeekTasks({ force: forceWeekTasks || force });
       }
 
       const isMonthFresh = !force && cachedMonth && (Date.now() - cachedMonth.loadedAt) < EVENTS_TTL;
@@ -643,8 +654,8 @@ const Calendar = (() => {
         allEvents = cachedMonth.items.slice();
         applyCalendarFilters({ renderSidebar: false });
         scheduleNotifications();
-        if (!skipWeekTasks) void loadWeekTasks({ force: forceWeekTasks });
         void ensureHolidays(currentYear);
+        void teamMembersPromise;
         return events;
       }
 
@@ -659,11 +670,26 @@ const Calendar = (() => {
       }
 
       const requestToken = ++monthLoadToken;
+      const pendingMonthKey = `${monthKey}:${force ? 'force' : 'normal'}`;
       void ensureHolidays(currentYear);
-      const loadedEvents = await Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}&calendar_type=${encodeURIComponent(getActiveCalendarView())}`);
-      if (requestToken !== monthLoadToken) return events;
-      allEvents = Array.isArray(loadedEvents) ? loadedEvents : [];
-      monthEventCache.set(monthKey, { items: allEvents.slice(), loadedAt: Date.now() });
+      if (!monthLoadPromise || monthLoadPromiseKey !== pendingMonthKey) {
+        monthLoadPromiseKey = pendingMonthKey;
+        monthLoadPromise = Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}&calendar_type=${encodeURIComponent(getActiveCalendarView())}`)
+          .then(loadedEvents => {
+            if (requestToken !== monthLoadToken) return allEvents;
+            allEvents = Array.isArray(loadedEvents) ? loadedEvents : [];
+            monthEventCache.set(monthKey, { items: allEvents.slice(), loadedAt: Date.now() });
+            return allEvents;
+          })
+          .finally(() => {
+            if (monthLoadPromiseKey === pendingMonthKey) {
+              monthLoadPromise = null;
+              monthLoadPromiseKey = '';
+            }
+          });
+      }
+
+      await monthLoadPromise;
     } catch (err) {
       console.error('[Calendar] 일정 로드 실패:', err.message);
       if (err.message !== 'Session expired' && retryCount < 2) {
