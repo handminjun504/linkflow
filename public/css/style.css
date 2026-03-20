@@ -1946,6 +1946,13 @@ textarea.select-input {
   padding: 12px 14px 10px;
   border-bottom: 1px solid var(--border);
 }
+
+.task-sidebar-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .task-sidebar-header h3 {
   font-size: 13px;
   font-weight: 700;
@@ -1954,6 +1961,55 @@ textarea.select-input {
   gap: 6px;
 }
 .task-sidebar-header h3 i { color: var(--primary); font-size: 16px; }
+
+.task-staff-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-staff-filters:empty {
+  display: none;
+}
+
+.task-staff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-light);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.task-staff-chip:hover {
+  border-color: var(--primary-light);
+  background: var(--primary-bg);
+  color: var(--text);
+}
+
+.task-staff-chip input {
+  margin: 0;
+  width: 13px;
+  height: 13px;
+  accent-color: var(--primary);
+}
+
+.task-staff-chip.is-active {
+  border-color: rgba(17, 17, 17, 0.18);
+  background: rgba(17, 17, 17, 0.06);
+  color: var(--text);
+}
+
+.task-staff-chip span {
+  white-space: nowrap;
+}
 
 .task-sidebar-body {
   flex: 1;
@@ -2041,6 +2097,25 @@ textarea.select-input {
 .task-item-time {
   font-size: 10px;
   color: var(--text-light);
+}
+
+.task-item-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-top: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-light);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.task-item-badge.work {
+  background: rgba(17, 17, 17, 0.08);
+  color: var(--text);
 }
 
 .task-item-note {

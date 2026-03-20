@@ -1,8 +1,10 @@
 const Calendar = (() => {
   let currentYear, currentMonth;
   let events = [];
+  let allEvents = [];
   let eventsByDate = new Map();
   let weekTasks = [];
+  let allWeekTasks = [];
   let notifyTimers = [];
   let holidayCache = {};
   let holidayRequests = {};
@@ -12,6 +14,13 @@ const Calendar = (() => {
   let weekTasksCacheKey = '';
   let weekTasksPromise = null;
   let weekTasksPromiseKey = '';
+  let teamMembers = [];
+  let teamMembersLoadedAt = 0;
+  let teamMembersCacheKey = '';
+  let teamMembersPromise = null;
+  let teamMembersPromiseKey = '';
+  let selectedStaffIds = new Set();
+  let staffSelectionInitialized = false;
   let notificationSessionKey = '';
   let activeCalendarView = 'work';
 
@@ -25,6 +34,7 @@ const Calendar = (() => {
   const DEFAULT_EVENT_COLOR = '#111111';
   const EVENTS_TTL = 60 * 1000;
   const WEEK_TASKS_TTL = 60 * 1000;
+  const TEAM_MEMBERS_TTL = 5 * 60 * 1000;
   const MONTHLY_ANCHOR_RECURRENCES = new Set(['monthly', 'quarterly', 'semi_annually']);
   const CALENDAR_VIEW_LABELS = {
     work: '업무 일정',
@@ -119,6 +129,69 @@ const Calendar = (() => {
     return getActiveCalendarView();
   }
 
+  function hasTeamCalendarAccess() {
+    return Boolean(Auth?.getUser?.()?.team_id);
+  }
+
+  function shouldShowStaffFilters() {
+    return isWorkView() && hasTeamCalendarAccess();
+  }
+
+  function resetTeamMemberState() {
+    teamMembers = [];
+    teamMembersLoadedAt = 0;
+    teamMembersCacheKey = '';
+    teamMembersPromise = null;
+    teamMembersPromiseKey = '';
+    selectedStaffIds = new Set();
+    staffSelectionInitialized = false;
+  }
+
+  function getTeamMembersKey() {
+    return Auth?.getUser?.()?.team_id || 'no-team';
+  }
+
+  function getStaffFilterLabel(member) {
+    if (!member) return '사용자';
+    if (member.is_current_user) return '나';
+    return member.display_name || member.username || '사용자';
+  }
+
+  function getEventOwnerLabel(event) {
+    const ownerId = event?.user_id || '';
+    const matchedMember = teamMembers.find(member => member.id === ownerId);
+    if (matchedMember) return getStaffFilterLabel(matchedMember);
+
+    const currentUser = Auth?.getUser?.();
+    if (ownerId && currentUser?.id === ownerId) return '나';
+    return event?.owner_display_name || event?.owner_username || '';
+  }
+
+  function syncSelectedStaffIds() {
+    const validIds = new Set(teamMembers.map(member => member.id));
+    if (!staffSelectionInitialized) {
+      selectedStaffIds = new Set(teamMembers.map(member => member.id));
+      staffSelectionInitialized = true;
+      return;
+    }
+    selectedStaffIds = new Set(
+      Array.from(selectedStaffIds).filter(memberId => validIds.has(memberId))
+    );
+  }
+
+  function isEventVisibleForSelectedStaff(event) {
+    if (!shouldShowStaffFilters()) return true;
+    if (!selectedStaffIds.size) return false;
+    const ownerId = event?.user_id || '';
+    return ownerId ? selectedStaffIds.has(ownerId) : true;
+  }
+
+  function filterEventsForSelectedStaff(items) {
+    const rows = Array.isArray(items) ? items : [];
+    if (!shouldShowStaffFilters()) return rows.slice();
+    return rows.filter(isEventVisibleForSelectedStaff);
+  }
+
   function isTeamSharedEvent(event) {
     return getEventCalendarType(event) === 'work' && Boolean(event?.team_id || event?.is_team_shared);
   }
@@ -150,6 +223,8 @@ const Calendar = (() => {
     weekTasksLoadedAt = 0;
     weekTasksCacheKey = '';
     weekTasksPromiseKey = '';
+    allEvents = [];
+    allWeekTasks = [];
   }
 
   function rebuildEventIndex() {
@@ -180,16 +255,114 @@ const Calendar = (() => {
     layout.classList.toggle('personal-mode', !isWorkView());
   }
 
+  function renderStaffFilters() {
+    const wrap = document.getElementById('task-staff-filters');
+    if (!wrap) return;
+
+    if (!shouldShowStaffFilters() || !teamMembers.length) {
+      wrap.innerHTML = '';
+      return;
+    }
+
+    wrap.innerHTML = teamMembers.map(member => {
+      const checked = selectedStaffIds.has(member.id) ? 'checked' : '';
+      const activeClass = selectedStaffIds.has(member.id) ? ' is-active' : '';
+      return `<label class="task-staff-chip${activeClass}">
+        <input type="checkbox" data-user-id="${member.id}" ${checked} />
+        <span>${escapeHtml(getStaffFilterLabel(member))}</span>
+      </label>`;
+    }).join('');
+
+    wrap.querySelectorAll('input[type="checkbox"]').forEach(input => {
+      input.addEventListener('change', () => {
+        const memberId = input.dataset.userId;
+        if (!memberId) return;
+        if (input.checked) {
+          selectedStaffIds.add(memberId);
+        } else {
+          selectedStaffIds.delete(memberId);
+        }
+        applyCalendarFilters();
+      });
+    });
+  }
+
+  function applyCalendarFilters(options = {}) {
+    const {
+      renderMonth = true,
+      renderSidebar = true,
+      renderDayModal = true,
+    } = options;
+
+    events = filterEventsForSelectedStaff(allEvents);
+    rebuildEventIndex();
+    weekTasks = filterEventsForSelectedStaff(allWeekTasks);
+
+    if (renderMonth) render();
+    renderStaffFilters();
+    if (renderSidebar) renderTaskSidebar();
+    if (renderDayModal) {
+      const selectedDate = document.getElementById('day-events-date')?.value || '';
+      if (selectedDate) renderDayEventsList(selectedDate);
+    }
+  }
+
+  async function loadTeamMembers(options = {}) {
+    if (!Auth.isLoggedIn() || !hasTeamCalendarAccess()) {
+      resetTeamMemberState();
+      renderStaffFilters();
+      return [];
+    }
+
+    const force = !!options.force;
+    const cacheKey = getTeamMembersKey();
+    const isFresh = !force
+      && teamMembersCacheKey === cacheKey
+      && (Date.now() - teamMembersLoadedAt) < TEAM_MEMBERS_TTL;
+
+    if (isFresh) {
+      renderStaffFilters();
+      return teamMembers;
+    }
+
+    if (teamMembersPromise && teamMembersPromiseKey === cacheKey) {
+      return teamMembersPromise;
+    }
+
+    teamMembersPromiseKey = cacheKey;
+    teamMembersPromise = (async () => {
+      try {
+        const loadedMembers = await Auth.request('/team/members');
+        teamMembers = Array.isArray(loadedMembers) ? loadedMembers : [];
+        teamMembersLoadedAt = Date.now();
+        teamMembersCacheKey = cacheKey;
+        syncSelectedStaffIds();
+      } catch (err) {
+        console.error('[Calendar] 팀 멤버 로드 실패:', err.message);
+        resetTeamMemberState();
+      } finally {
+        renderStaffFilters();
+        teamMembersPromise = null;
+        teamMembersPromiseKey = '';
+      }
+      return teamMembers;
+    })();
+
+    return teamMembersPromise;
+  }
+
   function setCalendarView(nextView, options = {}) {
     const normalized = nextView === 'personal' ? 'personal' : 'work';
     if (activeCalendarView === normalized && !options.force) {
       renderViewSwitch();
       updateCalendarLayoutMode();
+      renderStaffFilters();
       return;
     }
     activeCalendarView = normalized;
     renderViewSwitch();
     updateCalendarLayoutMode();
+    renderStaffFilters();
     syncCalendarTypeControls(getCurrentCalendarTypeForForm());
     if (!options.silent) {
       void load({ force: true, forceWeekTasks: true });
@@ -362,6 +535,7 @@ const Calendar = (() => {
     populateClientOptions();
     renderViewSwitch();
     updateCalendarLayoutMode();
+    renderStaffFilters();
     syncCalendarTypeControls();
     window.addEventListener('lf:clients-changed', () => {
       populateClientOptions(document.getElementById('evt-client')?.value || '');
@@ -373,10 +547,14 @@ const Calendar = (() => {
     window.addEventListener('lf:auth-changed', event => {
       resetNotificationState();
       invalidateCalendarCaches();
+      resetTeamMemberState();
       syncCalendarTypeControls();
+      renderStaffFilters();
       if (!event.detail?.loggedIn) {
+        allEvents = [];
         events = [];
         eventsByDate = new Map();
+        allWeekTasks = [];
         weekTasks = [];
         render();
         renderTaskSidebar();
@@ -441,21 +619,29 @@ const Calendar = (() => {
 
     try {
       if (!Auth.isLoggedIn()) {
+        allEvents = [];
         events = [];
         eventsByDate = new Map();
+        allWeekTasks = [];
         if (!skipWeekTasks) {
           weekTasks = [];
           renderTaskSidebar();
         }
+        renderStaffFilters();
         render();
         return [];
       }
 
+      if (shouldShowStaffFilters()) {
+        await loadTeamMembers({ force });
+      } else {
+        renderStaffFilters();
+      }
+
       const isMonthFresh = !force && cachedMonth && (Date.now() - cachedMonth.loadedAt) < EVENTS_TTL;
       if (isMonthFresh) {
-        events = cachedMonth.items.slice();
-        rebuildEventIndex();
-        render();
+        allEvents = cachedMonth.items.slice();
+        applyCalendarFilters({ renderSidebar: false });
         scheduleNotifications();
         if (!skipWeekTasks) void loadWeekTasks({ force: forceWeekTasks });
         void ensureHolidays(currentYear);
@@ -463,10 +649,10 @@ const Calendar = (() => {
       }
 
       if (cachedMonth?.items?.length) {
-        events = cachedMonth.items.slice();
-        rebuildEventIndex();
-        render();
+        allEvents = cachedMonth.items.slice();
+        applyCalendarFilters({ renderSidebar: false });
       } else {
+        allEvents = [];
         events = [];
         rebuildEventIndex();
         render();
@@ -476,8 +662,8 @@ const Calendar = (() => {
       void ensureHolidays(currentYear);
       const loadedEvents = await Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}&calendar_type=${encodeURIComponent(getActiveCalendarView())}`);
       if (requestToken !== monthLoadToken) return events;
-      events = Array.isArray(loadedEvents) ? loadedEvents : [];
-      monthEventCache.set(monthKey, { items: events.slice(), loadedAt: Date.now() });
+      allEvents = Array.isArray(loadedEvents) ? loadedEvents : [];
+      monthEventCache.set(monthKey, { items: allEvents.slice(), loadedAt: Date.now() });
     } catch (err) {
       console.error('[Calendar] 일정 로드 실패:', err.message);
       if (err.message !== 'Session expired' && retryCount < 2) {
@@ -487,11 +673,11 @@ const Calendar = (() => {
       if (err.message !== 'Session expired' && typeof UI !== 'undefined') {
         UI.showToast('일정을 불러오지 못했습니다', 'error');
       }
+      allEvents = [];
       events = [];
       eventsByDate = new Map();
     }
-    rebuildEventIndex();
-    render();
+    applyCalendarFilters({ renderSidebar: false });
     scheduleNotifications();
     if (!skipWeekTasks) void loadWeekTasks({ force: forceWeekTasks });
     return events;
@@ -502,9 +688,10 @@ const Calendar = (() => {
     const recurIcon = ev._recurring || ev.recurrence_type ? '<i class="ri-repeat-line" style="font-size:9px;margin-right:2px"></i>' : '';
     const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
     const clientName = getClientName(ev.client_id);
+    const ownerLabel = getEventOwnerLabel(ev);
     const doneClass = ev.is_done ? ' cal-event-done' : '';
     const scope = getEventScopeMeta(ev);
-    return `<div class="cal-event-bar${doneClass}${scope.barClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${scope.label} · ${time}${ev.title}${clientName ? ` · ${clientName}` : ''}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>`;
+    return `<div class="cal-event-bar${doneClass}${scope.barClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${scope.label}${ownerLabel ? ` · ${ownerLabel}` : ''} · ${time}${ev.title}${clientName ? ` · ${clientName}` : ''}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>`;
   }
 
   function buildCalendarCellMarkup({ dateStr, dayNumber, dayEvents, isToday, dow, holidayName }) {
@@ -607,7 +794,12 @@ const Calendar = (() => {
   // ── Task Sidebar ──
 
   async function loadWeekTasks(options = {}) {
-    if (!Auth.isLoggedIn()) { weekTasks = []; renderTaskSidebar(); return []; }
+    if (!Auth.isLoggedIn()) {
+      allWeekTasks = [];
+      weekTasks = [];
+      renderTaskSidebar();
+      return [];
+    }
 
     const force = !!options.force;
     const today = getTodayDateStr();
@@ -616,7 +808,7 @@ const Calendar = (() => {
     const weekKey = getWeekKey(new Date(`${today}T00:00:00`), tasksOnly);
     const isFresh = !force && weekTasksCacheKey === weekKey && (Date.now() - weekTasksLoadedAt) < WEEK_TASKS_TTL;
     if (isFresh) {
-      renderTaskSidebar();
+      applyCalendarFilters({ renderMonth: false, renderDayModal: false });
       return weekTasks;
     }
 
@@ -626,14 +818,15 @@ const Calendar = (() => {
     weekTasksPromise = (async () => {
       try {
         const loadedTasks = await Auth.request(`/events/week?date_str=${today}&calendar_type=${encodeURIComponent(calendarType)}&tasks_only=${tasksOnly ? 'true' : 'false'}`);
-        weekTasks = Array.isArray(loadedTasks) ? loadedTasks : [];
+        allWeekTasks = Array.isArray(loadedTasks) ? loadedTasks : [];
         weekTasksLoadedAt = Date.now();
         weekTasksCacheKey = weekKey;
       } catch (err) {
         console.error('[Calendar] 주간 작업 로드 실패:', err.message);
+        allWeekTasks = [];
         weekTasks = [];
       } finally {
-        renderTaskSidebar();
+        applyCalendarFilters({ renderMonth: false, renderDayModal: false });
         weekTasksPromise = null;
         weekTasksPromiseKey = '';
       }
@@ -644,13 +837,13 @@ const Calendar = (() => {
   }
 
   function applyTaskDoneState(eventId, targetDate, isDone) {
-    const matchTask = weekTasks.find(task => task.id === eventId && (!targetDate || task.start_date === targetDate))
-      || weekTasks.find(task => task.id === eventId);
+    const matchTask = allWeekTasks.find(task => task.id === eventId && (!targetDate || task.start_date === targetDate))
+      || allWeekTasks.find(task => task.id === eventId);
     if (matchTask) matchTask.is_done = isDone;
 
-    const dayEvents = targetDate ? (eventsByDate.get(targetDate) || []) : events;
+    const dayEvents = targetDate ? allEvents.filter(event => event.start_date === targetDate) : allEvents;
     const matchEvent = dayEvents.find(event => event.id === eventId)
-      || events.find(event => event.id === eventId);
+      || allEvents.find(event => event.id === eventId);
     if (matchEvent) matchEvent.is_done = isDone;
   }
 
@@ -695,6 +888,7 @@ const Calendar = (() => {
         const time = t.start_time ? t.start_time.substring(0, 5) : '';
         const note = (t.description || '').trim();
         const clientName = getClientName(t.client_id);
+        const ownerLabel = getEventOwnerLabel(t);
         const scope = getEventScopeMeta(t);
         const calendarBadge = `<span class="task-item-badge${scope.badgeClass}"><i class="${scope.badgeIcon}"></i> ${scope.badgeLabel}</span>`;
         const dateAttr = (t._recurring || t.recurrence_type) ? ` data-date="${t.start_date}"` : '';
@@ -703,6 +897,7 @@ const Calendar = (() => {
           <div class="task-item-body">
             <span class="task-item-title">${escapeHtml(t.title)}</span>
             ${time ? `<span class="task-item-time">${time}</span>` : ''}
+            ${ownerLabel ? `<span class="task-item-time">담당자 · ${escapeHtml(ownerLabel)}</span>` : ''}
             ${clientName ? `<span class="task-item-time">거래처 · ${escapeHtml(clientName)}</span>` : ''}
             ${calendarBadge}
             ${note ? `<span class="task-item-note">${escapeHtml(note)}</span>` : ''}
@@ -733,6 +928,7 @@ const Calendar = (() => {
           weekTasksLoadedAt = Date.now();
           const cachedMonth = monthEventCache.get(getMonthKey(currentYear, currentMonth));
           if (cachedMonth) cachedMonth.loadedAt = Date.now();
+          applyCalendarFilters({ renderDayModal: true });
         } catch (err) {
           applyTaskDoneState(cb.dataset.id, targetDate, !nextDone);
           if (taskItem) taskItem.classList.toggle('task-done', !nextDone);
@@ -810,6 +1006,7 @@ const Calendar = (() => {
       const time = ev.start_time ? ev.start_time.substring(0, 5) : '종일';
       const note = (ev.description || '').trim();
       const clientName = getClientName(ev.client_id);
+      const ownerLabel = getEventOwnerLabel(ev);
       const doneClass = ev.is_done ? ' day-event-done' : '';
       const scope = getEventScopeMeta(ev);
       return `<button type="button" class="day-event-item${doneClass}" data-id="${ev.id}">
@@ -821,6 +1018,7 @@ const Calendar = (() => {
           </div>
           <div class="day-event-meta">
             <span class="day-event-badge${scope.badgeClass}"><i class="${scope.badgeIcon}"></i>${scope.badgeLabel}</span>
+            ${ownerLabel ? `<span class="day-event-badge"><i class="ri-user-line"></i>${escapeHtml(ownerLabel)}</span>` : ''}
             ${clientName ? `<span class="day-event-badge"><i class="ri-briefcase-4-line"></i>${escapeHtml(clientName)}</span>` : ''}
           </div>
           ${note ? `<div class="day-event-note">${escapeHtml(note)}</div>` : ''}
@@ -972,7 +1170,7 @@ const Calendar = (() => {
     const now = new Date();
     const sessionKey = getNotificationSessionKey();
     notificationSessionKey = sessionKey;
-    events.forEach(ev => {
+    allEvents.forEach(ev => {
       if (ev.remind_minutes == null || !ev.start_time) return;
       const eventTime = new Date(`${ev.start_date}T${ev.start_time}`);
       const notifyTime = new Date(eventTime.getTime() - ev.remind_minutes * 60000);
