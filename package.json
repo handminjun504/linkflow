@@ -1,6 +1,6 @@
 {
   "name": "linkflow",
-  "version": "2.7.13",
+  "version": "2.7.14",
   "description": "LinkFlow - Unified service management desktop app",
   "main": "main.js",
   "scripts": {

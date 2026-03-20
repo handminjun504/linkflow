@@ -62,6 +62,7 @@ const Calendar = (() => {
     map[item.key] = index;
     return map;
   }, {});
+  const MAX_EVENTS_PER_DAY_CELL = 4;
 
   function populateClientOptions(selected = '') {
     const wrap = document.getElementById('evt-client-wrap');
@@ -528,12 +529,12 @@ const Calendar = (() => {
     if (dayEvents.length > 0) {
       html += '<div class="cal-events-wrap">';
       html += '<div class="cal-events">';
-      dayEvents.slice(0, 3).forEach(ev => {
+      dayEvents.slice(0, MAX_EVENTS_PER_DAY_CELL).forEach(ev => {
         html += buildCalendarEventBar(ev);
       });
       html += '</div>';
-      if (dayEvents.length > 3) {
-        html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
+      if (dayEvents.length > MAX_EVENTS_PER_DAY_CELL) {
+        html += `<div class="cal-event-more">+${dayEvents.length - MAX_EVENTS_PER_DAY_CELL}</div>`;
       }
       html += '</div>';
     }

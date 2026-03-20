@@ -71,6 +71,12 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+#tab-calendar.tab-content.active {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
 #dashboard-screen.hidden { display: none !important; }
 
 /* ═══════════════ Login Screen ═══════════════ */
@@ -1875,8 +1881,9 @@ textarea.select-input {
 /* ═══════════════ Calendar Layout ═══════════════ */
 .calendar-layout {
   display: flex;
-  min-height: calc(100vh - 110px);
-  height: auto;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
   align-items: stretch;
 }
@@ -1888,12 +1895,13 @@ textarea.select-input {
   display: flex;
   flex-direction: column;
   overflow: auto;
-  padding-bottom: 2px;
+  padding-bottom: 0;
+  background: var(--white);
 }
 
 /* ═══════════════ Task Sidebar ═══════════════ */
 .task-sidebar {
-  width: 300px;
+  width: 225px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: var(--white);
@@ -1903,23 +1911,23 @@ textarea.select-input {
 }
 
 .task-sidebar-header {
-  padding: 16px 18px 12px;
+  padding: 12px 14px 10px;
   border-bottom: 1px solid var(--border);
 }
 .task-sidebar-header h3 {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.task-sidebar-header h3 i { color: var(--primary); font-size: 18px; }
+.task-sidebar-header h3 i { color: var(--primary); font-size: 16px; }
 
 .task-sidebar-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px;
+  padding: 8px;
 }
 
 .task-sidebar-empty-state {
@@ -1943,15 +1951,15 @@ textarea.select-input {
 .task-empty p { font-size: 13px; }
 
 .task-day-group {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .task-day-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 8px 12px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1969,8 +1977,8 @@ textarea.select-input {
 .task-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 6px 10px;
   background: rgba(255,255,255,0.6);
   border-bottom: 1px solid rgba(0,0,0,0.04);
   transition: background var(--transition);
@@ -1991,7 +1999,7 @@ textarea.select-input {
 
 .task-item-body { flex: 1; min-width: 0; }
 .task-item-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   display: block;
   white-space: nowrap;
@@ -1999,14 +2007,14 @@ textarea.select-input {
   text-overflow: ellipsis;
 }
 .task-item-time {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-light);
 }
 
 .task-item-note {
   display: block;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-light);
   white-space: nowrap;
   overflow: hidden;
@@ -2047,28 +2055,28 @@ textarea.select-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 20px 24px 12px;
+  gap: 10px;
+  padding: 14px 18px 8px;
   flex-wrap: wrap;
 }
 
 .calendar-nav {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .calendar-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .calendar-view-switch {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
+  gap: 3px;
+  padding: 3px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg);
@@ -2078,9 +2086,9 @@ textarea.select-input {
   border: 0;
   background: transparent;
   color: var(--text-light);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: 6px 11px;
   border-radius: 999px;
   cursor: pointer;
   transition: background var(--transition), color var(--transition);
@@ -2097,24 +2105,24 @@ textarea.select-input {
 }
 
 .calendar-header h2 {
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 700;
-  min-width: 160px;
+  min-width: 132px;
   text-align: center;
 }
 
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  padding: 0 24px;
+  padding: 0 18px;
   text-align: center;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 .calendar-weekdays .wd {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-light);
-  padding: 8px 0;
+  padding: 6px 0;
 }
 .calendar-weekdays .wd.sun { color: var(--danger); }
 .calendar-weekdays .wd.sat { color: var(--primary); }
@@ -2128,7 +2136,7 @@ textarea.select-input {
   background: var(--border);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  margin: 0 24px 2px;
+  margin: 0 18px 0;
   flex: 1;
   min-height: 0;
   overflow: visible;
@@ -2137,7 +2145,7 @@ textarea.select-input {
 .cal-cell {
   background: var(--white);
   min-height: 0;
-  padding: 6px;
+  padding: 4px;
   cursor: pointer;
   transition: background var(--transition);
   overflow: hidden;
@@ -2150,12 +2158,12 @@ textarea.select-input {
 
 .cal-day-num {
   display: inline-block;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  width: 30px;
-  height: 30px;
-  line-height: 30px;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
   text-align: center;
   border-radius: 50%;
 }
@@ -2171,7 +2179,7 @@ textarea.select-input {
 .cal-cell.holiday .cal-day-num { color: var(--danger); }
 
 .cal-holiday-name {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--danger);
   line-height: 1.2;
   white-space: nowrap;
@@ -2186,7 +2194,7 @@ textarea.select-input {
   flex-direction: column;
   gap: 1px;
   flex-shrink: 0;
-  min-height: 36px;
+  min-height: 28px;
 }
 
 .cal-cell-body {
@@ -2199,12 +2207,12 @@ textarea.select-input {
 .cal-events {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-height: 0;
 }
 
 .cal-events-wrap {
-  margin-top: 4px;
+  margin-top: 3px;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -2212,15 +2220,15 @@ textarea.select-input {
 }
 
 .cal-event-bar {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
   color: var(--white);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
-  line-height: 1.4;
+  line-height: 1.25;
 }
 .cal-event-bar:hover { opacity: 0.85; }
 .cal-event-done { opacity: 0.45; text-decoration: line-through; }
@@ -2238,9 +2246,9 @@ textarea.select-input {
 }
 
 .cal-event-more {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-light);
-  padding: 1px 6px;
+  padding: 1px 5px;
   margin-top: auto;
   flex-shrink: 0;
 }
@@ -3051,9 +3059,10 @@ textarea.select-input {
   .main-tab { padding: 6px 10px; font-size: 12px; }
   .main-tab span { display: none; }
   .main-tab i { font-size: 18px; }
-  .calendar-layout { flex-direction: column; min-height: calc(100vh - 110px); }
-  .task-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 250px; }
-  .calendar-grid { margin: 0 10px; }
+  .calendar-layout { flex-direction: column; min-height: 0; }
+  #tab-calendar.tab-content.active { overflow-y: auto; }
+  .task-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 190px; }
+  .calendar-grid { margin: 0 10px 0; }
   .calendar-header {
     padding: 14px 14px 8px;
     flex-direction: column;
@@ -3431,13 +3440,13 @@ body {
 @media (max-width: 1120px) {
   .calendar-layout {
     flex-direction: column;
-    min-height: calc(100vh - 112px);
+    min-height: 0;
     overflow: hidden;
   }
 
   .task-sidebar {
     width: 100%;
-    max-height: 240px;
+    max-height: 190px;
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
@@ -3447,24 +3456,24 @@ body {
   }
 
   .calendar-grid {
-    margin: 0 14px 2px;
-    grid-auto-rows: minmax(92px, 1fr);
-    min-height: 470px;
+    margin: 0 14px 0;
+    grid-auto-rows: minmax(80px, 1fr);
+    min-height: 0;
   }
 
   .cal-cell {
-    min-height: 92px;
+    min-height: 80px;
   }
 }
 
 @media (max-width: 840px) {
   .calendar-grid {
-    grid-auto-rows: minmax(82px, 1fr);
-    min-height: 420px;
+    grid-auto-rows: minmax(74px, 1fr);
+    min-height: 0;
   }
 
   .cal-cell {
-    min-height: 82px;
+    min-height: 74px;
   }
 
   .cal-event-bar {
@@ -3479,7 +3488,7 @@ body {
 
 .calendar-grid {
   --calendar-row-count: 6;
-  --calendar-row-min: 86px;
+  --calendar-row-min: 76px;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-template-rows: repeat(var(--calendar-row-count), minmax(var(--calendar-row-min), 1fr));
   grid-auto-rows: unset;
@@ -3497,7 +3506,7 @@ body {
   }
 
   .calendar-grid {
-    --calendar-row-min: 84px;
+    --calendar-row-min: 74px;
   }
 }
 
@@ -3508,6 +3517,6 @@ body {
   }
 
   .calendar-grid {
-    --calendar-row-min: 78px;
+    --calendar-row-min: 70px;
   }
 }
