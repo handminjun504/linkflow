@@ -11,6 +11,7 @@ const Calendar = (() => {
   let weekTasksLoadedAt = 0;
   let weekTasksCacheKey = '';
   let weekTasksPromise = null;
+  let weekTasksPromiseKey = '';
   let notificationSessionKey = '';
   let activeCalendarView = 'work';
 
@@ -48,6 +49,19 @@ const Calendar = (() => {
     { cls: 'task-day-fri', label: '금' },
     { cls: 'task-day-sat', label: '토' },
   ];
+  const WEEKDAY_OPTIONS = [
+    { key: 'mon', label: '월' },
+    { key: 'tue', label: '화' },
+    { key: 'wed', label: '수' },
+    { key: 'thu', label: '목' },
+    { key: 'fri', label: '금' },
+    { key: 'sat', label: '토' },
+    { key: 'sun', label: '일' },
+  ];
+  const WEEKDAY_KEY_INDEX = WEEKDAY_OPTIONS.reduce((map, item, index) => {
+    map[item.key] = index;
+    return map;
+  }, {});
 
   function populateClientOptions(selected = '') {
     const wrap = document.getElementById('evt-client-wrap');
@@ -83,11 +97,11 @@ const Calendar = (() => {
     return `${activeCalendarView}:${year}-${String(month + 1).padStart(2, '0')}`;
   }
 
-  function getWeekKey(baseDate = new Date()) {
+  function getWeekKey(baseDate = new Date(), tasksOnly = isWorkView()) {
     const start = new Date(baseDate);
     start.setHours(0, 0, 0, 0);
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    return `${activeCalendarView}:${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+    return `${activeCalendarView}:${tasksOnly ? 'tasks' : 'all'}:${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
   }
 
   function getActiveCalendarView() {
@@ -134,6 +148,7 @@ const Calendar = (() => {
     monthEventCache.clear();
     weekTasksLoadedAt = 0;
     weekTasksCacheKey = '';
+    weekTasksPromiseKey = '';
   }
 
   function rebuildEventIndex() {
@@ -176,7 +191,7 @@ const Calendar = (() => {
     updateCalendarLayoutMode();
     syncCalendarTypeControls(getCurrentCalendarTypeForForm());
     if (!options.silent) {
-      void load({ force: true, forceWeekTasks: isWorkView() });
+      void load({ force: true, forceWeekTasks: true });
     }
   }
 
@@ -235,6 +250,70 @@ const Calendar = (() => {
     return event?.is_task ? 'work' : 'personal';
   }
 
+  function getWeekdayKeyForDateStr(dateStr) {
+    const target = new Date(`${dateStr || getTodayDateStr()}T00:00:00`);
+    if (Number.isNaN(target.getTime())) return 'mon';
+    return WEEKDAY_OPTIONS[(target.getDay() + 6) % 7].key;
+  }
+
+  function normalizeRecurrenceWeekdays(values, fallbackDateStr = '') {
+    const items = Array.isArray(values)
+      ? values
+      : typeof values === 'string'
+        ? values.split(',')
+        : [];
+    const selected = new Set();
+    items.forEach(value => {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (WEEKDAY_KEY_INDEX[normalized] != null) selected.add(normalized);
+    });
+    const ordered = WEEKDAY_OPTIONS.filter(item => selected.has(item.key)).map(item => item.key);
+    if (!ordered.length && fallbackDateStr) {
+      return [getWeekdayKeyForDateStr(fallbackDateStr)];
+    }
+    return ordered;
+  }
+
+  function getSelectedRecurrenceWeekdays(fallbackDateStr = '') {
+    const inputs = document.querySelectorAll('#evt-weekdays input');
+    return normalizeRecurrenceWeekdays(
+      Array.from(inputs).filter(input => input.checked).map(input => input.value),
+      fallbackDateStr,
+    );
+  }
+
+  function setSelectedRecurrenceWeekdays(values, fallbackDateStr = '') {
+    const selected = new Set(normalizeRecurrenceWeekdays(values, fallbackDateStr));
+    document.querySelectorAll('#evt-weekdays input').forEach(input => {
+      input.checked = selected.has(input.value);
+    });
+  }
+
+  function updateRecurrenceUi() {
+    const recurrenceType = normalizeRecurrenceType(document.getElementById('evt-recurrence')?.value || '');
+    const hasRecurrence = !!recurrenceType;
+    const isWeekly = recurrenceType === 'weekly';
+    const hasMonthlyAnchor = usesMonthlyAnchor(recurrenceType);
+    const startDate = document.getElementById('evt-date')?.value || getTodayDateStr();
+    const currentWeeklySelection = getSelectedRecurrenceWeekdays();
+
+    document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
+    document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence && !isWeekly ? '' : 'none';
+    document.getElementById('evt-recurrence-day-wrap').style.display = hasMonthlyAnchor ? '' : 'none';
+    document.getElementById('evt-weekdays-wrap').style.display = isWeekly ? '' : 'none';
+
+    if (isWeekly) {
+      setSelectedRecurrenceWeekdays(currentWeeklySelection, startDate);
+    }
+
+    if (!hasMonthlyAnchor) {
+      document.getElementById('evt-recurrence-day').value = '';
+    }
+    if (recurrenceType === 'daily') {
+      document.getElementById('evt-skip-weekend').checked = true;
+    }
+  }
+
   function init() {
     const now = new Date();
     currentYear = now.getFullYear();
@@ -269,16 +348,13 @@ const Calendar = (() => {
       });
     });
 
-    document.getElementById('evt-recurrence').addEventListener('change', e => {
-      const val = normalizeRecurrenceType(e.target.value);
-      const hasRecurrence = !!val;
-      const hasMonthlyAnchor = usesMonthlyAnchor(val);
-      document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
-      document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence ? '' : 'none';
-      document.getElementById('evt-recurrence-day-wrap').style.display = hasMonthlyAnchor ? '' : 'none';
-      if (val === 'daily') {
-        document.getElementById('evt-skip-weekend').checked = true;
+    document.getElementById('evt-recurrence').addEventListener('change', () => updateRecurrenceUi());
+    document.getElementById('evt-date')?.addEventListener('change', () => {
+      if (normalizeRecurrenceType(document.getElementById('evt-recurrence')?.value || '') === 'weekly') {
+        const currentSelection = getSelectedRecurrenceWeekdays();
+        setSelectedRecurrenceWeekdays(currentSelection, document.getElementById('evt-date')?.value || getTodayDateStr());
       }
+      updateRecurrenceUi();
     });
 
     requestNotificationPermission();
@@ -380,11 +456,7 @@ const Calendar = (() => {
         rebuildEventIndex();
         render();
         scheduleNotifications();
-        if (!skipWeekTasks && isWorkView()) void loadWeekTasks({ force: forceWeekTasks });
-        else if (!isWorkView()) {
-          weekTasks = [];
-          renderTaskSidebar();
-        }
+        if (!skipWeekTasks) void loadWeekTasks({ force: forceWeekTasks });
         void ensureHolidays(currentYear);
         return events;
       }
@@ -420,12 +492,80 @@ const Calendar = (() => {
     rebuildEventIndex();
     render();
     scheduleNotifications();
-    if (!skipWeekTasks && isWorkView()) void loadWeekTasks({ force: forceWeekTasks });
-    else if (!isWorkView()) {
-      weekTasks = [];
-      renderTaskSidebar();
-    }
+    if (!skipWeekTasks) void loadWeekTasks({ force: forceWeekTasks });
     return events;
+  }
+
+  function buildCalendarEventBar(ev) {
+    const time = ev.start_time ? `${ev.start_time.substring(0, 5)} ` : '';
+    const recurIcon = ev._recurring || ev.recurrence_type ? '<i class="ri-repeat-line" style="font-size:9px;margin-right:2px"></i>' : '';
+    const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
+    const clientName = getClientName(ev.client_id);
+    const doneClass = ev.is_done ? ' cal-event-done' : '';
+    const scope = getEventScopeMeta(ev);
+    return `<div class="cal-event-bar${doneClass}${scope.barClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${scope.label} · ${time}${ev.title}${clientName ? ` · ${clientName}` : ''}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>`;
+  }
+
+  function buildCalendarCellMarkup({ dateStr, dayNumber, dayEvents, isToday, dow, holidayName }) {
+    const isSun = dow === 0;
+    const isSat = dow === 6;
+    const isHoliday = !!holidayName;
+
+    let cellClass = 'cal-cell';
+    if (isToday) cellClass += ' today';
+    if (isSun) cellClass += ' sun';
+    if (isSat) cellClass += ' sat';
+    if (isHoliday) cellClass += ' holiday';
+
+    let html = `<div class="${cellClass}" data-date="${dateStr}">`;
+    html += '<div class="cal-cell-head">';
+    html += `<span class="cal-day-num">${dayNumber}</span>`;
+    if (isHoliday) {
+      html += `<div class="cal-holiday-name">${escapeHtml(holidayName)}</div>`;
+    }
+    html += '</div>';
+    html += '<div class="cal-cell-body">';
+    if (dayEvents.length > 0) {
+      html += '<div class="cal-events-wrap">';
+      html += '<div class="cal-events">';
+      dayEvents.slice(0, 3).forEach(ev => {
+        html += buildCalendarEventBar(ev);
+      });
+      html += '</div>';
+      if (dayEvents.length > 3) {
+        html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
+      }
+      html += '</div>';
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderDayCell(dateStr) {
+    const cell = document.querySelector(`#calendar-grid .cal-cell[data-date="${dateStr}"]`);
+    if (!cell) return;
+    const target = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(target.getTime())) return;
+    if (target.getFullYear() !== currentYear || target.getMonth() !== currentMonth) return;
+    const today = new Date();
+    const holidays = holidayCache[currentYear] || {};
+    const nextMarkup = buildCalendarCellMarkup({
+      dateStr,
+      dayNumber: target.getDate(),
+      dayEvents: eventsByDate.get(dateStr) || [],
+      isToday: today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === target.getDate(),
+      dow: target.getDay(),
+      holidayName: holidays[dateStr],
+    });
+    cell.outerHTML = nextMarkup;
+  }
+
+  function refreshVisibleEventViews(dateStr = '') {
+    if (dateStr) renderDayCell(dateStr);
+    const dayEventsDate = document.getElementById('day-events-date')?.value || '';
+    if (dayEventsDate && (!dateStr || dayEventsDate === dateStr)) {
+      renderDayEventsList(dayEventsDate);
+    }
   }
 
   function render() {
@@ -448,41 +588,15 @@ const Calendar = (() => {
       const dayEvents = eventsByDate.get(dateStr) || [];
       const isToday = isCurrentMonth && today.getDate() === d;
       const dow = (firstDay + d - 1) % 7;
-      const isSun = dow === 0;
-      const isSat = dow === 6;
       const holidayName = holidays[dateStr];
-      const isHoliday = !!holidayName;
-
-      let cellClass = 'cal-cell';
-      if (isToday) cellClass += ' today';
-      if (isSun) cellClass += ' sun';
-      if (isSat) cellClass += ' sat';
-      if (isHoliday) cellClass += ' holiday';
-
-      html += `<div class="${cellClass}" data-date="${dateStr}">`;
-      html += `<span class="cal-day-num">${d}</span>`;
-      if (isHoliday) {
-        html += `<div class="cal-holiday-name">${escapeHtml(holidayName)}</div>`;
-      }
-      if (dayEvents.length > 0) {
-        html += '<div class="cal-events">';
-        dayEvents.slice(0, 3).forEach(ev => {
-          const time = ev.start_time ? ev.start_time.substring(0, 5) + ' ' : '';
-          const recurIcon = ev._recurring || ev.recurrence_type ? '<i class="ri-repeat-line" style="font-size:9px;margin-right:2px"></i>' : '';
-          const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
-          const clientName = getClientName(ev.client_id);
-          const doneClass = ev.is_done ? ' cal-event-done' : '';
-          const scope = getEventScopeMeta(ev);
-          const scopeClass = scope.barClass;
-          const scopeLabel = scope.label;
-          html += `<div class="cal-event-bar${doneClass}${scopeClass}" style="background:${ev.color || DEFAULT_EVENT_COLOR}" data-id="${ev.id}" title="${scopeLabel} · ${time}${ev.title}${clientName ? ` · ${clientName}` : ''}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>`;
-        });
-        if (dayEvents.length > 3) {
-          html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
-        }
-        html += '</div>';
-      }
-      html += '</div>';
+      html += buildCalendarCellMarkup({
+        dateStr,
+        dayNumber: d,
+        dayEvents,
+        isToday,
+        dow,
+        holidayName,
+      });
     }
 
     grid.innerHTML = html;
@@ -493,22 +607,24 @@ const Calendar = (() => {
 
   async function loadWeekTasks(options = {}) {
     if (!Auth.isLoggedIn()) { weekTasks = []; renderTaskSidebar(); return []; }
-    if (!isWorkView()) { weekTasks = []; renderTaskSidebar(); return []; }
 
     const force = !!options.force;
     const today = getTodayDateStr();
-    const weekKey = getWeekKey(new Date(`${today}T00:00:00`));
+    const tasksOnly = options.tasksOnly ?? isWorkView();
+    const calendarType = getActiveCalendarView();
+    const weekKey = getWeekKey(new Date(`${today}T00:00:00`), tasksOnly);
     const isFresh = !force && weekTasksCacheKey === weekKey && (Date.now() - weekTasksLoadedAt) < WEEK_TASKS_TTL;
     if (isFresh) {
       renderTaskSidebar();
       return weekTasks;
     }
 
-    if (weekTasksPromise) return weekTasksPromise;
+    if (weekTasksPromise && weekTasksPromiseKey === weekKey) return weekTasksPromise;
 
+    weekTasksPromiseKey = weekKey;
     weekTasksPromise = (async () => {
       try {
-        const loadedTasks = await Auth.request(`/events/week?date_str=${today}&calendar_type=work`);
+        const loadedTasks = await Auth.request(`/events/week?date_str=${today}&calendar_type=${encodeURIComponent(calendarType)}&tasks_only=${tasksOnly ? 'true' : 'false'}`);
         weekTasks = Array.isArray(loadedTasks) ? loadedTasks : [];
         weekTasksLoadedAt = Date.now();
         weekTasksCacheKey = weekKey;
@@ -518,6 +634,7 @@ const Calendar = (() => {
       } finally {
         renderTaskSidebar();
         weekTasksPromise = null;
+        weekTasksPromiseKey = '';
       }
       return weekTasks;
     })();
@@ -543,14 +660,10 @@ const Calendar = (() => {
     if (title) {
       title.innerHTML = isWorkView()
         ? '<i class="ri-list-check-2"></i> 이번 주 업무'
-        : '<i class="ri-user-line"></i> 개인 일정';
-    }
-    if (!isWorkView()) {
-      container.innerHTML = '<div class="task-sidebar-empty-state"><i class="ri-user-line"></i><p>개인 일정 탭에서는 주간 업무 목록을 숨깁니다</p></div>';
-      return;
+        : '<i class="ri-user-line"></i> 이번 주 개인 일정';
     }
     if (weekTasks.length === 0) {
-      container.innerHTML = '<div class="task-empty"><i class="ri-checkbox-circle-line"></i><p>이번 주 업무가 없습니다</p></div>';
+      container.innerHTML = `<div class="task-empty"><i class="${isWorkView() ? 'ri-checkbox-circle-line' : 'ri-calendar-line'}"></i><p>${isWorkView() ? '이번 주 업무가 없습니다' : '이번 주 개인 일정이 없습니다'}</p></div>`;
       return;
     }
 
@@ -604,27 +717,25 @@ const Calendar = (() => {
     container.querySelectorAll('.task-check').forEach(cb => {
       cb.addEventListener('change', async () => {
         const nextDone = cb.checked;
-        const targetDate = cb.dataset.date || '';
+        const targetDate = cb.dataset.date || weekTasks.find(task => task.id === cb.dataset.id)?.start_date || '';
         const taskItem = cb.closest('.task-item');
         cb.disabled = true;
         applyTaskDoneState(cb.dataset.id, targetDate, nextDone);
         if (taskItem) taskItem.classList.toggle('task-done', nextDone);
-        render();
+        refreshVisibleEventViews(targetDate);
         try {
           const qs = targetDate ? `?target_date=${encodeURIComponent(targetDate)}` : '';
           await Auth.request(`/events/${cb.dataset.id}/done${qs}`, {
             method: 'PATCH',
             body: JSON.stringify({ is_done: nextDone }),
           });
-          invalidateCalendarCaches();
-          void Promise.all([
-            loadWeekTasks({ force: true }),
-            load({ force: true, skipWeekTasks: true }),
-          ]);
+          weekTasksLoadedAt = Date.now();
+          const cachedMonth = monthEventCache.get(getMonthKey(currentYear, currentMonth));
+          if (cachedMonth) cachedMonth.loadedAt = Date.now();
         } catch (err) {
           applyTaskDoneState(cb.dataset.id, targetDate, !nextDone);
           if (taskItem) taskItem.classList.toggle('task-done', !nextDone);
-          render();
+          refreshVisibleEventViews(targetDate);
           cb.checked = !nextDone;
           UI.showToast(err.message, 'error');
         } finally {
@@ -645,15 +756,14 @@ const Calendar = (() => {
     document.getElementById('evt-date').value = dateStr || '';
     document.getElementById('evt-color').value = DEFAULT_EVENT_COLOR;
     document.getElementById('evt-edit-id').value = '';
-    document.getElementById('evt-recurrence-end-wrap').style.display = 'none';
-    document.getElementById('evt-recurrence-day-wrap').style.display = 'none';
-    document.getElementById('evt-skip-weekend-wrap').style.display = 'none';
     document.getElementById('evt-skip-weekend').checked = true;
     document.getElementById('evt-recurrence-day').value = '';
+    setSelectedRecurrenceWeekdays([], dateStr || getTodayDateStr());
     document.getElementById('evt-client').value = '';
     document.getElementById('evt-share-with-team').checked = false;
     document.getElementById('evt-calendar-type').value = getCurrentCalendarTypeForForm();
     syncCalendarTypeControls(getCurrentCalendarTypeForForm());
+    updateRecurrenceUi();
     resetColorPicker('evt-color-picker', DEFAULT_EVENT_COLOR);
     UI.openModal('event-modal');
   }
@@ -745,16 +855,14 @@ const Calendar = (() => {
     const recurrenceType = normalizeRecurrenceType(ev.recurrence_type || '');
     document.getElementById('evt-recurrence').value = recurrenceType || '';
     document.getElementById('evt-recurrence-end').value = ev.recurrence_end || '';
-    const hasRecurrence = !!recurrenceType;
     const hasMonthlyAnchor = usesMonthlyAnchor(recurrenceType);
-    document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
-    document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence ? '' : 'none';
-    document.getElementById('evt-recurrence-day-wrap').style.display = hasMonthlyAnchor ? '' : 'none';
     document.getElementById('evt-recurrence-day').value = hasMonthlyAnchor ? (ev.recurrence_day || new Date(ev.start_date + 'T00:00:00').getDate()) : '';
+    setSelectedRecurrenceWeekdays(ev.recurrence_weekdays || [], ev.start_date);
     document.getElementById('evt-skip-weekend').checked = recurrenceType === 'daily' ? true : (ev.skip_weekend || false);
     document.getElementById('evt-calendar-type').value = getEventCalendarType(ev);
     document.getElementById('evt-share-with-team').checked = isTeamSharedEvent(ev);
     syncCalendarTypeControls(getEventCalendarType(ev));
+    updateRecurrenceUi();
     document.getElementById('evt-is-task').checked = ev.is_task || false;
     document.getElementById('evt-client').value = ev.client_id || '';
     document.getElementById('evt-color').value = ev.color || DEFAULT_EVENT_COLOR;
@@ -773,6 +881,9 @@ const Calendar = (() => {
     const id = document.getElementById('evt-edit-id').value;
     const remindVal = document.getElementById('evt-remind').value;
     const recurrence = normalizeRecurrenceType(document.getElementById('evt-recurrence').value);
+    const recurrenceWeekdays = recurrence === 'weekly'
+      ? getSelectedRecurrenceWeekdays(document.getElementById('evt-date').value || getTodayDateStr())
+      : [];
     const calendarType = document.getElementById('evt-calendar-type').value || getCurrentCalendarTypeForForm();
     const shareWithTeam = calendarType === 'work' && document.getElementById('evt-share-with-team').checked;
 
@@ -805,6 +916,7 @@ const Calendar = (() => {
       recurrence_end: recurrence ? (document.getElementById('evt-recurrence-end').value || null) : null,
       recurrence_interval: 1,
       recurrence_day: recurrenceDay,
+      recurrence_weekdays: recurrenceWeekdays,
       calendar_type: calendarType,
       share_with_team: shareWithTeam,
       is_task: calendarType === 'work' && document.getElementById('evt-is-task').checked,
