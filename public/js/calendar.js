@@ -172,7 +172,10 @@ const Calendar = (() => {
   function syncSelectedStaffIds() {
     const validIds = new Set(teamMembers.map(member => member.id));
     if (!staffSelectionInitialized) {
-      selectedStaffIds = new Set(teamMembers.map(member => member.id));
+      const currentMember = teamMembers.find(member => member.is_current_user)
+        || teamMembers.find(member => member.id === Auth?.getUser?.()?.id)
+        || teamMembers[0];
+      selectedStaffIds = currentMember?.id ? new Set([currentMember.id]) : new Set();
       staffSelectionInitialized = true;
       return;
     }
