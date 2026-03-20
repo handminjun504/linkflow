@@ -11,11 +11,13 @@ const Clients = (() => {
     welfare_fund: '사내근로복지기금',
     loan: '대출',
   };
+  const CLIENT_TEAM_REQUIRED_MESSAGE = '계정에 팀 설정이 없어 거래처를 볼 수 없습니다. 관리자에서 조직 설정을 먼저 해주세요.';
 
   let initialized = false;
   let clients = [];
   let searchQuery = '';
   let staffFilter = 'all';
+  let teamAccessRequired = false;
   let selectedClientId = null;
   let selectedClient = null;
   let timelineItems = [];
@@ -86,6 +88,15 @@ const Clients = (() => {
 
   async function load(options = {}) {
     if (!Auth.isLoggedIn()) {
+      teamAccessRequired = false;
+      resetState();
+      render();
+      notifyClientsChanged();
+      return [];
+    }
+
+    if (!hasClientTeamAccess()) {
+      teamAccessRequired = true;
       resetState();
       render();
       notifyClientsChanged();
@@ -119,6 +130,7 @@ const Clients = (() => {
 
         clients = Array.isArray(rows) ? rows.map(normalizeClient) : [];
         clientsLoadedAt = Date.now();
+        teamAccessRequired = false;
         if (schema && typeof schema === 'object') {
           schemaMeta = {
             ...schemaMeta,
@@ -137,6 +149,7 @@ const Clients = (() => {
 
         return clients;
       } catch (err) {
+        teamAccessRequired = isClientTeamAccessError(err);
         resetState();
         render();
         notifyClientsChanged();
@@ -189,6 +202,10 @@ const Clients = (() => {
   }
 
   async function manualSync() {
+    if (teamAccessRequired || !hasClientTeamAccess()) {
+      UI.showToast(CLIENT_TEAM_REQUIRED_MESSAGE, 'error');
+      return;
+    }
     const result = await runSync({ silent: false, manual: true });
     if (!result) return;
     await load({ force: true, skipSync: true, silent: false, selectedClientId });
@@ -201,20 +218,22 @@ const Clients = (() => {
 
     syncPromise = (async () => {
       try {
-        const result = await Auth.request('/clients/sync', { method: 'POST' });
-        schemaMeta = {
-          ...schemaMeta,
-          last_synced_at: result?.last_synced_at || schemaMeta.last_synced_at,
-          last_error: null,
-          sheet_title: result?.sheet_title || schemaMeta.sheet_title,
-          sheet_range: result?.sheet_range || schemaMeta.sheet_range,
-          extra_fields: Array.isArray(result?.extra_fields)
-            ? result.extra_fields.map(field => ({ key: field, label: field }))
-            : schemaMeta.extra_fields,
-        };
+        const result = await requestClientSync();
+        applySyncResult(result);
         renderSyncState();
         return result;
       } catch (err) {
+        try {
+          if (shouldRetrySyncWithElectronFile(err)) {
+            const serviceAccountJson = await getElectronServiceAccountJson();
+            const retryResult = await requestClientSync({ service_account_json: serviceAccountJson });
+            applySyncResult(retryResult);
+            renderSyncState();
+            return retryResult;
+          }
+        } catch (retryErr) {
+          err = retryErr;
+        }
         schemaMeta = {
           ...schemaMeta,
           last_error: err.message,
@@ -228,6 +247,47 @@ const Clients = (() => {
     })();
 
     return syncPromise;
+  }
+
+  async function requestClientSync(payload = null) {
+    const options = { method: 'POST' };
+    if (payload) options.body = JSON.stringify(payload);
+    return Auth.request('/clients/sync', options);
+  }
+
+  function applySyncResult(result) {
+    schemaMeta = {
+      ...schemaMeta,
+      last_synced_at: result?.last_synced_at || schemaMeta.last_synced_at,
+      last_error: null,
+      sheet_title: result?.sheet_title || schemaMeta.sheet_title,
+      sheet_range: result?.sheet_range || schemaMeta.sheet_range,
+      extra_fields: Array.isArray(result?.extra_fields)
+        ? result.extra_fields.map(field => ({ key: field, label: field }))
+        : schemaMeta.extra_fields,
+    };
+  }
+
+  function shouldRetrySyncWithElectronFile(err) {
+    if (!window.electronAPI?.getClientSheetServiceAccountJson) return false;
+    if (isClientTeamAccessError(err)) return false;
+    const message = String(err?.message || '');
+    if (!message) return false;
+    if (message.includes('Session expired')) return false;
+    return (
+      message.includes('GOOGLE_SERVICE_ACCOUNT_JSON')
+      || message.includes('서비스 계정')
+      || message.includes('거래처 시트 동기화 실패')
+      || message.includes('Google')
+    );
+  }
+
+  async function getElectronServiceAccountJson() {
+    const result = await window.electronAPI.getClientSheetServiceAccountJson();
+    if (!result?.ok || !result?.json) {
+      throw new Error(result?.error || '거래처 동기화용 서비스계정 JSON 파일을 읽지 못했습니다');
+    }
+    return result.json;
   }
 
   function shouldAutoSync(force) {
@@ -261,6 +321,7 @@ const Clients = (() => {
 
   function render() {
     renderSyncState();
+    renderAccessState();
     renderStaffFilter();
     renderList();
     renderDetail();
@@ -272,6 +333,15 @@ const Clients = (() => {
     const source = document.getElementById('client-sync-source');
     const button = document.getElementById('btn-sync-clients');
     if (!status || !source || !button) return;
+
+    if (teamAccessRequired) {
+      status.textContent = '팀 설정 필요';
+      status.classList.add('is-error');
+      source.textContent = CLIENT_TEAM_REQUIRED_MESSAGE;
+      button.disabled = true;
+      button.innerHTML = '<i class="ri-refresh-line"></i> 시트 동기화';
+      return;
+    }
 
     const lastSyncedText = schemaMeta.last_synced_at
       ? `마지막 동기화 ${formatDateTime(schemaMeta.last_synced_at)}`
@@ -293,6 +363,28 @@ const Clients = (() => {
       : '<i class="ri-refresh-line"></i> 시트 동기화';
   }
 
+  function renderAccessState() {
+    const searchInput = document.getElementById('clients-search-input');
+    if (searchInput) searchInput.disabled = teamAccessRequired;
+
+    document.querySelectorAll('#clients-staff-filter [data-staff-filter]').forEach(button => {
+      button.disabled = teamAccessRequired;
+    });
+
+    [
+      'btn-add-client',
+      'btn-sync-clients',
+      'btn-edit-client',
+      'btn-client-create-event',
+      'btn-hide-client',
+      'btn-link-client-shortcut',
+      'client-shortcut-select',
+    ].forEach(id => {
+      const node = document.getElementById(id);
+      if (node) node.disabled = teamAccessRequired;
+    });
+  }
+
   function renderList() {
     const list = document.getElementById('clients-list');
     const count = document.getElementById('client-list-count');
@@ -300,6 +392,11 @@ const Clients = (() => {
 
     const filtered = getFilteredClients();
     count.textContent = String(filtered.length);
+
+    if (teamAccessRequired) {
+      list.innerHTML = `<div class="clients-list-empty"><i class="ri-team-line"></i><p>${escapeHtml(CLIENT_TEAM_REQUIRED_MESSAGE)}</p></div>`;
+      return;
+    }
 
     if (!filtered.length) {
       list.innerHTML = '<div class="clients-list-empty"><i class="ri-building-2-line"></i><p>표시할 거래처가 없습니다</p></div>';
@@ -330,6 +427,20 @@ const Clients = (() => {
     const empty = document.getElementById('clients-detail-empty');
     const body = document.getElementById('clients-detail-body');
     if (!empty || !body) return;
+
+    const emptyTitle = empty.querySelector('h3');
+    const emptyText = empty.querySelector('p');
+
+    if (teamAccessRequired) {
+      if (emptyTitle) emptyTitle.textContent = '팀 설정이 필요합니다';
+      if (emptyText) emptyText.textContent = CLIENT_TEAM_REQUIRED_MESSAGE;
+      empty.classList.remove('hidden');
+      body.classList.add('hidden');
+      return;
+    }
+
+    if (emptyTitle) emptyTitle.textContent = '거래처를 선택하세요';
+    if (emptyText) emptyText.textContent = 'Google Sheet에서 동기화된 거래처 정보와 연결된 바로가기, 타임라인을 확인할 수 있습니다.';
 
     if (!selectedClientId) {
       empty.classList.remove('hidden');
@@ -520,6 +631,10 @@ const Clients = (() => {
   }
 
   async function hideSelectedClient() {
+    if (teamAccessRequired || !hasClientTeamAccess()) {
+      UI.showToast(CLIENT_TEAM_REQUIRED_MESSAGE, 'error');
+      return;
+    }
     if (!selectedClientId) return;
     const ok = await UI.confirm(
       '거래처 종료 처리',
@@ -577,6 +692,10 @@ const Clients = (() => {
   }
 
   async function updateBookmarkClientLink(bookmarkId, clientId, successMessage) {
+    if (teamAccessRequired || !hasClientTeamAccess()) {
+      UI.showToast(CLIENT_TEAM_REQUIRED_MESSAGE, 'error');
+      return;
+    }
     try {
       await Auth.request(`/bookmarks/${bookmarkId}`, {
         method: 'PUT',
@@ -596,6 +715,10 @@ const Clients = (() => {
   }
 
   function openActionEvent(clientId) {
+    if (teamAccessRequired || !hasClientTeamAccess()) {
+      UI.showToast(CLIENT_TEAM_REQUIRED_MESSAGE, 'error');
+      return;
+    }
     const client = clients.find(item => item.id === clientId) || selectedClient;
     if (!client) return;
 
@@ -693,6 +816,12 @@ const Clients = (() => {
   function populateSelect(target, selectedValue = '') {
     const select = typeof target === 'string' ? document.getElementById(target) : target;
     if (!select) return;
+    if (teamAccessRequired) {
+      select.innerHTML = '<option value="">팀 설정 필요</option>';
+      select.value = '';
+      select.disabled = true;
+      return;
+    }
     const currentValue = selectedValue || select.value || '';
     select.innerHTML =
       '<option value="">없음</option>' +
@@ -912,6 +1041,14 @@ const Clients = (() => {
     });
   }
 
+  function hasClientTeamAccess() {
+    return Boolean(Auth.getUser?.()?.team_id);
+  }
+
+  function isClientTeamAccessError(err) {
+    return String(err?.message || '').includes('팀 설정');
+  }
+
   function getClientServiceGroup(client) {
     const code = String(client?.client_code || '').replace(/\D/g, '');
     if (code.startsWith('6')) return 'policy';
@@ -1005,6 +1142,10 @@ const Clients = (() => {
 
   async function saveClient(event) {
     event.preventDefault();
+    if (teamAccessRequired || !hasClientTeamAccess()) {
+      UI.showToast(CLIENT_TEAM_REQUIRED_MESSAGE, 'error');
+      return;
+    }
     const clientId = document.getElementById('client-id')?.value || '';
     const data = collectClientFormData();
     if (!data.name) {

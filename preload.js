@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   installExtensionCrx: (idOrUrl) => ipcRenderer.invoke('ext-install-crx', idOrUrl),
   removeExtension: (id) => ipcRenderer.invoke('ext-remove', id),
   listExtensions: () => ipcRenderer.invoke('ext-list'),
+  getClientSheetServiceAccountJson: () => ipcRenderer.invoke('client-sheet-service-account-read'),
   openExtensionPopup: (id) => ipcRenderer.invoke('ext-open-popup', id),
   getExtensionBadge: (id) => ipcRenderer.invoke('ext-get-badge', id),
   registerTab: (info) => ipcRenderer.send('ext-tabs-register', info),

@@ -35,6 +35,12 @@ const userDataPath = path.join(app.getPath('appData'), 'unified-access');
 try { fs.mkdirSync(userDataPath, { recursive: true }); } catch {}
 app.setPath('userData', userDataPath);
 
+function getClientSheetServiceAccountPath() {
+  const explicit = (process.env.LINKFLOW_GOOGLE_SERVICE_ACCOUNT_JSON_FILE || '').trim();
+  if (explicit) return explicit;
+  return path.join(app.getPath('home'), 'Downloads', 'linkflow-490708-bae80089e93e.json');
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.exit(0);
@@ -360,6 +366,48 @@ ipcMain.handle('ext-load', async () => {
   });
   if (result.canceled || !result.filePaths.length) return { ok: false };
   return await installExtensionFromPath(result.filePaths[0]);
+});
+
+ipcMain.handle('client-sheet-service-account-read', async () => {
+  const defaultPath = getClientSheetServiceAccountPath();
+  const candidates = [defaultPath];
+
+  for (const targetPath of candidates) {
+    try {
+      const raw = fs.readFileSync(targetPath, 'utf-8').trim();
+      if (raw) {
+        return { ok: true, json: raw, path: targetPath };
+      }
+    } catch {}
+  }
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '거래처 동기화용 서비스계정 JSON 선택',
+    properties: ['openFile'],
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (result.canceled || !result.filePaths.length) {
+    return {
+      ok: false,
+      error: `거래처 동기화용 서비스계정 JSON 파일을 찾지 못했습니다: ${defaultPath}`,
+      path: defaultPath,
+    };
+  }
+
+  const selectedPath = result.filePaths[0];
+  try {
+    const raw = fs.readFileSync(selectedPath, 'utf-8').trim();
+    if (!raw) {
+      return { ok: false, error: `서비스계정 JSON 파일이 비어 있습니다: ${selectedPath}`, path: selectedPath };
+    }
+    return { ok: true, json: raw, path: selectedPath };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `서비스계정 JSON 파일을 읽지 못했습니다: ${selectedPath} (${err.message})`,
+      path: selectedPath,
+    };
+  }
 });
 
 ipcMain.handle('ext-remove', async (_e, extId) => {
