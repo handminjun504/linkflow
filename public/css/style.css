@@ -831,6 +831,38 @@ textarea.select-input {
   background: var(--white);
 }
 
+.clients-segmented-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px 0;
+  flex-wrap: wrap;
+}
+
+.clients-filter-chip {
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--text-light);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.clients-filter-chip:hover {
+  border-color: var(--primary-light);
+  color: var(--text);
+  background: var(--primary-bg);
+}
+
+.clients-filter-chip.active {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--white);
+}
+
 .clients-list-section {
   padding: 18px 22px 0;
 }

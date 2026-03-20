@@ -15,6 +15,7 @@ const Clients = (() => {
   let initialized = false;
   let clients = [];
   let searchQuery = '';
+  let staffFilter = 'all';
   let selectedClientId = null;
   let selectedClient = null;
   let timelineItems = [];
@@ -57,6 +58,14 @@ const Clients = (() => {
       searchQuery = event.target.value.trim();
       persistState();
       renderList();
+    });
+    document.getElementById('clients-staff-filter')?.addEventListener('click', event => {
+      const button = event.target.closest('[data-staff-filter]');
+      if (!button) return;
+      staffFilter = button.dataset.staffFilter || 'all';
+      persistState();
+      renderList();
+      renderStaffFilter();
     });
     document.getElementById('btn-client-password-toggle')?.addEventListener('click', togglePasswordVisibility);
 
@@ -252,6 +261,7 @@ const Clients = (() => {
 
   function render() {
     renderSyncState();
+    renderStaffFilter();
     renderList();
     renderDetail();
     renderShortcuts();
@@ -604,6 +614,9 @@ const Clients = (() => {
   function getFilteredClients() {
     const query = searchQuery.toLowerCase();
     return clients.filter(client => {
+      const serviceGroup = getClientServiceGroup(client);
+      if (staffFilter === 'policy' && serviceGroup !== 'policy') return false;
+      if (staffFilter === 'remote' && serviceGroup !== 'remote') return false;
       if (!query) return true;
       const extraValues = Object.entries(client.sheet_extra_fields || {})
         .map(([key, value]) => `${key} ${value}`)
@@ -611,6 +624,7 @@ const Clients = (() => {
       const haystack = [
         client.name,
         getClientCategoryLabel(client.client_category),
+        getClientServiceGroupLabel(client),
         client.owner_name,
         client.company_contact_name,
         client.phone,
@@ -645,6 +659,7 @@ const Clients = (() => {
   function buildSubtitle(client) {
     const parts = [];
     if (client.client_category && client.client_category !== 'general') parts.push(getClientCategoryLabel(client.client_category));
+    parts.push(getClientServiceGroupLabel(client));
     if (client.owner_name) parts.push(`경리팀 ${client.owner_name}`);
     if (client.company_contact_name) parts.push(`기업 ${client.company_contact_name}`);
     if (client.phone) parts.push(formatPhoneForDisplay(client.phone));
@@ -657,6 +672,7 @@ const Clients = (() => {
 
   function buildListMeta(client) {
     const parts = [];
+    parts.push(getClientServiceGroupLabel(client));
     if (client.client_category && client.client_category !== 'general') parts.push(getClientCategoryLabel(client.client_category));
     if (client.client_code) parts.push(`코드 ${client.client_code}`);
     if (client.business_number) parts.push(`사업자번호 ${client.business_number}`);
@@ -774,7 +790,7 @@ const Clients = (() => {
 
   function persistState() {
     if (persistStateTimer) clearTimeout(persistStateTimer);
-    const nextState = { searchQuery };
+    const nextState = { searchQuery, staffFilter };
     persistStateTimer = setTimeout(() => {
       persistStateTimer = null;
       if (Preferences?.setClientViewState) {
@@ -786,6 +802,7 @@ const Clients = (() => {
   function restoreState() {
     const raw = Preferences?.getClientViewState?.() || {};
     if (raw.searchQuery) searchQuery = raw.searchQuery;
+    if (raw.staffFilter) staffFilter = raw.staffFilter;
     const searchInput = document.getElementById('clients-search-input');
     if (searchInput) searchInput.value = searchQuery;
   }
@@ -887,6 +904,22 @@ const Clients = (() => {
 
   function getClientCategoryLabel(value) {
     return CLIENT_CATEGORY_LABELS[String(value || 'general').trim().toLowerCase()] || '일반';
+  }
+
+  function renderStaffFilter() {
+    document.querySelectorAll('#clients-staff-filter [data-staff-filter]').forEach(button => {
+      button.classList.toggle('active', button.dataset.staffFilter === staffFilter);
+    });
+  }
+
+  function getClientServiceGroup(client) {
+    const code = String(client?.client_code || '').replace(/\D/g, '');
+    if (code.startsWith('6')) return 'policy';
+    return 'remote';
+  }
+
+  function getClientServiceGroupLabel(client) {
+    return getClientServiceGroup(client) === 'policy' ? '정책경리' : '원격경리';
   }
 
   function syncClientCategoryFields() {
