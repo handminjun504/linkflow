@@ -6,6 +6,11 @@ const Clients = (() => {
     memo: 'ri-sticky-note-line',
     event: 'ri-calendar-event-line',
   };
+  const CLIENT_CATEGORY_LABELS = {
+    general: '일반',
+    welfare_fund: '사내근로복지기금',
+    loan: '대출',
+  };
 
   let initialized = false;
   let clients = [];
@@ -35,11 +40,17 @@ const Clients = (() => {
 
     restoreState();
 
+    document.getElementById('btn-add-client')?.addEventListener('click', openCreateClientModal);
+    document.getElementById('btn-edit-client')?.addEventListener('click', () => {
+      if (selectedClientId) openEditClientModal(selectedClientId);
+    });
     document.getElementById('btn-sync-clients')?.addEventListener('click', manualSync);
     document.getElementById('btn-client-create-event')?.addEventListener('click', () => {
       if (selectedClientId) openActionEvent(selectedClientId);
     });
     document.getElementById('btn-hide-client')?.addEventListener('click', hideSelectedClient);
+    document.getElementById('client-form')?.addEventListener('submit', saveClient);
+    document.getElementById('client-category')?.addEventListener('change', syncClientCategoryFields);
     document.getElementById('btn-link-client-shortcut')?.addEventListener('click', linkSelectedShortcut);
     document.getElementById('client-shortcuts-list')?.addEventListener('click', handleShortcutAction);
     document.getElementById('clients-search-input')?.addEventListener('input', event => {
@@ -329,6 +340,7 @@ const Clients = (() => {
     setText('client-detail-name', getClientDisplayName(client));
     setText('client-detail-subtitle', buildSubtitle(client));
     setValue('client-detail-name-input', client.name || '');
+    setValue('client-detail-category', getClientCategoryLabel(client.client_category));
     setValue('client-detail-owner', client.owner_name || '');
     setValue('client-detail-company-contact', client.company_contact_name || '');
     setValue('client-detail-phone', formatPhoneForDisplay(client.phone) || '');
@@ -339,6 +351,10 @@ const Clients = (() => {
     setValue('client-detail-client-code', client.client_code || '');
     setValue('client-detail-business-number', client.business_number || '');
     setValue('client-detail-ceo-name', client.ceo_name || '');
+    setValue('client-detail-approval-number', client.approval_number || '');
+    setValue('client-detail-incorporation-date', client.incorporation_registry_date || '');
+    setValue('client-detail-fund-corporate-name', client.fund_corporate_name || '');
+    setValue('client-detail-parent-company-name', client.parent_company_name || '');
     setValue('client-detail-gyeongli-id', client.gyeongli_id || '');
     setValue('client-detail-memo', client.memo || '');
 
@@ -365,9 +381,16 @@ const Clients = (() => {
     );
     setText(
       'client-detail-source-summary',
-      schemaMeta.sheet_title
-        ? `${schemaMeta.sheet_title}${schemaMeta.sheet_range ? ` · ${schemaMeta.sheet_range}` : ''}`
-        : 'Google Sheet'
+      client.sheet_row_number != null
+        ? (schemaMeta.sheet_title
+          ? `${schemaMeta.sheet_title}${schemaMeta.sheet_range ? ` · ${schemaMeta.sheet_range}` : ''}`
+          : 'Google Sheet')
+        : 'LinkFlow 직접 등록'
+    );
+
+    document.getElementById('client-detail-fund-section')?.classList.toggle(
+      'hidden',
+      client.client_category !== 'welfare_fund'
     );
 
     renderExtraFields(client);
@@ -587,6 +610,7 @@ const Clients = (() => {
         .join(' ');
       const haystack = [
         client.name,
+        getClientCategoryLabel(client.client_category),
         client.owner_name,
         client.company_contact_name,
         client.phone,
@@ -595,6 +619,9 @@ const Clients = (() => {
         client.client_code,
         client.business_number,
         client.ceo_name,
+        client.approval_number,
+        client.fund_corporate_name,
+        client.parent_company_name,
         client.gyeongli_id,
         client.next_action_title,
         extraValues,
@@ -617,16 +644,20 @@ const Clients = (() => {
 
   function buildSubtitle(client) {
     const parts = [];
+    if (client.client_category && client.client_category !== 'general') parts.push(getClientCategoryLabel(client.client_category));
     if (client.owner_name) parts.push(`경리팀 ${client.owner_name}`);
     if (client.company_contact_name) parts.push(`기업 ${client.company_contact_name}`);
     if (client.phone) parts.push(formatPhoneForDisplay(client.phone));
     if (client.email) parts.push(client.email);
     if (parts.length) return parts.join(' · ');
-    return 'Google Sheet 기반 읽기 전용 거래처 정보입니다.';
+    return client.sheet_row_number != null
+      ? 'Google Sheet 기반 거래처 정보입니다.'
+      : 'LinkFlow에 직접 등록한 거래처입니다.';
   }
 
   function buildListMeta(client) {
     const parts = [];
+    if (client.client_category && client.client_category !== 'general') parts.push(getClientCategoryLabel(client.client_category));
     if (client.client_code) parts.push(`코드 ${client.client_code}`);
     if (client.business_number) parts.push(`사업자번호 ${client.business_number}`);
     if (client.ceo_name) parts.push(`대표 ${client.ceo_name}`);
@@ -730,7 +761,9 @@ const Clients = (() => {
     const index = clients.findIndex(item => item.id === normalized.id);
     if (index >= 0) {
       clients[index] = { ...clients[index], ...normalized };
+      return;
     }
+    clients.unshift(normalized);
   }
 
   function notifyClientsChanged() {
@@ -762,6 +795,7 @@ const Clients = (() => {
     return {
       ...base,
       name: normalizeText(base.name) || normalizeText(base.gyeongli_id) || '이름 미지정',
+      client_category: normalizeText(base.client_category) || 'general',
       owner_name: normalizeText(base.owner_name) || null,
       company_contact_name: normalizeText(base.company_contact_name) || null,
       phone: normalizeText(base.phone) || null,
@@ -770,6 +804,10 @@ const Clients = (() => {
       client_code: normalizeText(base.client_code) || null,
       business_number: normalizeText(base.business_number) || null,
       ceo_name: normalizeText(base.ceo_name) || null,
+      approval_number: normalizeText(base.approval_number) || null,
+      incorporation_registry_date: normalizeText(base.incorporation_registry_date) || null,
+      fund_corporate_name: normalizeText(base.fund_corporate_name) || null,
+      parent_company_name: normalizeText(base.parent_company_name) || null,
       gyeongli_id: normalizeText(base.gyeongli_id) || null,
       gyeongli_password: normalizeText(base.gyeongli_password) || null,
       last_contact_at: normalizeText(base.last_contact_at) || null,
@@ -845,6 +883,118 @@ const Clients = (() => {
   function setValue(id, value) {
     const node = document.getElementById(id);
     if (node) node.value = value || '';
+  }
+
+  function getClientCategoryLabel(value) {
+    return CLIENT_CATEGORY_LABELS[String(value || 'general').trim().toLowerCase()] || '일반';
+  }
+
+  function syncClientCategoryFields() {
+    const category = document.getElementById('client-category')?.value || 'general';
+    const fundWrap = document.getElementById('client-fund-fields');
+    if (fundWrap) fundWrap.classList.toggle('hidden', category !== 'welfare_fund');
+    if (category !== 'welfare_fund') {
+      setValue('client-approval-number', '');
+      setValue('client-incorporation-date', '');
+      setValue('client-fund-corporate-name', '');
+      setValue('client-parent-company-name', '');
+    }
+  }
+
+  function resetClientForm() {
+    document.getElementById('client-form')?.reset();
+    setValue('client-id', '');
+    setValue('client-category', 'general');
+    syncClientCategoryFields();
+  }
+
+  function openCreateClientModal() {
+    resetClientForm();
+    setText('client-modal-title', '거래처 추가');
+    UI.openModal('client-modal');
+  }
+
+  function openEditClientModal(clientId) {
+    const client = clients.find(item => item.id === clientId) || selectedClient;
+    if (!client) return;
+    resetClientForm();
+    setText('client-modal-title', '거래처 편집');
+    setValue('client-id', client.id);
+    setValue('client-name', client.name);
+    setValue('client-category', client.client_category || 'general');
+    setValue('client-code', client.client_code);
+    setValue('client-business-number', client.business_number);
+    setValue('client-ceo-name', client.ceo_name);
+    setValue('client-owner', client.owner_name);
+    setValue('client-company-contact', client.company_contact_name);
+    setValue('client-phone', client.phone);
+    setValue('client-email', client.email);
+    setValue('client-gyeongli-id', client.gyeongli_id);
+    setValue('client-gyeongli-password', client.gyeongli_password);
+    setValue('client-last-contact', client.last_contact_at);
+    setValue('client-next-action-title', client.next_action_title);
+    setValue('client-next-action-at', client.next_action_at);
+    setValue('client-approval-number', client.approval_number);
+    setValue('client-incorporation-date', client.incorporation_registry_date);
+    setValue('client-fund-corporate-name', client.fund_corporate_name);
+    setValue('client-parent-company-name', client.parent_company_name);
+    setValue('client-memo', client.memo);
+    syncClientCategoryFields();
+    UI.openModal('client-modal');
+  }
+
+  function collectClientFormData() {
+    const category = document.getElementById('client-category')?.value || 'general';
+    const rawPassword = document.getElementById('client-gyeongli-password')?.value ?? '';
+    return {
+      name: normalizeText(document.getElementById('client-name')?.value),
+      status: 'active',
+      client_category: category,
+      owner_name: normalizeText(document.getElementById('client-owner')?.value) || null,
+      company_contact_name: normalizeText(document.getElementById('client-company-contact')?.value) || null,
+      phone: normalizeText(document.getElementById('client-phone')?.value) || null,
+      email: normalizeText(document.getElementById('client-email')?.value) || null,
+      memo: normalizeMultilineText(document.getElementById('client-memo')?.value) || null,
+      last_contact_at: normalizeText(document.getElementById('client-last-contact')?.value) || null,
+      next_action_title: normalizeText(document.getElementById('client-next-action-title')?.value) || null,
+      next_action_at: normalizeText(document.getElementById('client-next-action-at')?.value) || null,
+      client_code: normalizeText(document.getElementById('client-code')?.value) || null,
+      business_number: normalizeText(document.getElementById('client-business-number')?.value) || null,
+      ceo_name: normalizeText(document.getElementById('client-ceo-name')?.value) || null,
+      gyeongli_id: normalizeText(document.getElementById('client-gyeongli-id')?.value) || null,
+      gyeongli_password: normalizeText(rawPassword) || undefined,
+      approval_number: category === 'welfare_fund' ? (normalizeText(document.getElementById('client-approval-number')?.value) || null) : null,
+      incorporation_registry_date: category === 'welfare_fund' ? (normalizeText(document.getElementById('client-incorporation-date')?.value) || null) : null,
+      fund_corporate_name: category === 'welfare_fund' ? (normalizeText(document.getElementById('client-fund-corporate-name')?.value) || null) : null,
+      parent_company_name: category === 'welfare_fund' ? (normalizeText(document.getElementById('client-parent-company-name')?.value) || null) : null,
+    };
+  }
+
+  async function saveClient(event) {
+    event.preventDefault();
+    const clientId = document.getElementById('client-id')?.value || '';
+    const data = collectClientFormData();
+    if (!data.name) {
+      UI.showToast('거래처명을 입력해주세요', 'error');
+      return;
+    }
+
+    try {
+      const saved = clientId
+        ? await Auth.request(`/clients/${clientId}`, { method: 'PUT', body: JSON.stringify(data) })
+        : await Auth.request('/clients', { method: 'POST', body: JSON.stringify(data) });
+      syncClientIntoList(saved);
+      selectedClientId = saved.id;
+      selectedClient = normalizeClient(saved);
+      render();
+      renderShortcuts();
+      notifyClientsChanged();
+      UI.closeModal('client-modal');
+      UI.showToast(clientId ? '거래처를 수정했습니다' : '거래처를 추가했습니다', 'success');
+      await selectClient(saved.id, { silentList: true });
+    } catch (err) {
+      UI.showToast(err.message, 'error');
+    }
   }
 
   function escapeHtml(value) {

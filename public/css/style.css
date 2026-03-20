@@ -745,6 +745,13 @@ textarea.select-input {
   padding: 20px 22px 12px;
 }
 
+.clients-sidebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .clients-kicker {
   font-size: 11px;
   font-weight: 700;
@@ -1130,6 +1137,14 @@ textarea.select-input {
   border-radius: 16px;
   padding: 18px;
   background: #fcfdff;
+}
+
+.clients-fund-section {
+  margin-bottom: 10px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: #f8fafc;
 }
 
 .client-detail-form .form-row {

@@ -113,7 +113,10 @@
               <p class="clients-kicker">업무 운영</p>
               <h2>거래처</h2>
             </div>
-            <button class="btn btn-outline btn-sm" id="btn-sync-clients"><i class="ri-refresh-line"></i> 시트 동기화</button>
+            <div class="clients-sidebar-actions">
+              <button class="btn btn-primary btn-sm" id="btn-add-client"><i class="ri-add-line"></i> 추가</button>
+              <button class="btn btn-outline btn-sm" id="btn-sync-clients"><i class="ri-refresh-line"></i> 시트 동기화</button>
+            </div>
           </div>
 
           <div class="clients-toolbar-row">
@@ -160,6 +163,7 @@
                 <p id="client-detail-subtitle"></p>
               </div>
               <div class="clients-detail-actions">
+                <button class="btn btn-outline btn-sm" id="btn-edit-client"><i class="ri-pencil-line"></i> 편집</button>
                 <button class="btn btn-outline btn-sm" id="btn-client-create-event"><i class="ri-calendar-event-line"></i> 일정 생성</button>
                 <button class="btn btn-danger btn-sm" id="btn-hide-client"><i class="ri-eye-off-line"></i> 종료 처리</button>
               </div>
@@ -170,6 +174,10 @@
                 <div class="form-col">
                   <label class="field-label">거래처명</label>
                   <input type="text" id="client-detail-name-input" class="select-input client-readonly-input" readonly />
+                </div>
+                <div class="form-col">
+                  <label class="field-label">거래처 분류</label>
+                  <input type="text" id="client-detail-category" class="select-input client-readonly-input" readonly />
                 </div>
               </div>
               <div class="form-row">
@@ -230,6 +238,28 @@
                   <div class="client-password-field">
                     <input type="password" id="client-detail-gyeongli-password" class="select-input client-readonly-input" readonly />
                     <button type="button" class="btn btn-ghost btn-sm" id="btn-client-password-toggle">보기</button>
+                  </div>
+                </div>
+              </div>
+              <div class="clients-fund-section hidden" id="client-detail-fund-section">
+                <div class="form-row">
+                  <div class="form-col">
+                    <label class="field-label">인가번호</label>
+                    <input type="text" id="client-detail-approval-number" class="select-input client-readonly-input" readonly />
+                  </div>
+                  <div class="form-col">
+                    <label class="field-label">설립등기일</label>
+                    <input type="text" id="client-detail-incorporation-date" class="select-input client-readonly-input" readonly />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-col">
+                    <label class="field-label">기금법인명</label>
+                    <input type="text" id="client-detail-fund-corporate-name" class="select-input client-readonly-input" readonly />
+                  </div>
+                  <div class="form-col">
+                    <label class="field-label">모회사명</label>
+                    <input type="text" id="client-detail-parent-company-name" class="select-input client-readonly-input" readonly />
                   </div>
                 </div>
               </div>
@@ -713,19 +743,33 @@
         <button class="icon-btn modal-close" data-modal="client-modal"><i class="ri-close-line"></i></button>
       </div>
       <form id="client-form">
+        <input type="hidden" id="client-id" />
         <div class="form-row">
           <div class="form-col">
             <label class="field-label">거래처명</label>
             <input type="text" id="client-name" class="select-input" placeholder="거래처명" required />
           </div>
           <div class="form-col">
-            <label class="field-label">상태</label>
-            <select id="client-status" class="select-input">
-              <option value="active">진행중</option>
-              <option value="pending">대기</option>
-              <option value="paused">중단</option>
-              <option value="closed">종료</option>
+            <label class="field-label">거래처 분류</label>
+            <select id="client-category" class="select-input">
+              <option value="general">일반</option>
+              <option value="welfare_fund">사내근로복지기금</option>
+              <option value="loan">대출</option>
             </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">코드</label>
+            <input type="text" id="client-code" class="select-input" placeholder="선택 입력" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">사업자번호</label>
+            <input type="text" id="client-business-number" class="select-input" placeholder="사업자번호" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">대표</label>
+            <input type="text" id="client-ceo-name" class="select-input" placeholder="대표자명" />
           </div>
         </div>
         <div class="form-row">
@@ -750,6 +794,16 @@
         </div>
         <div class="form-row">
           <div class="form-col">
+            <label class="field-label">경리나라 아이디</label>
+            <input type="text" id="client-gyeongli-id" class="select-input" placeholder="경리나라 아이디" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">경리나라 비밀번호</label>
+            <input type="text" id="client-gyeongli-password" class="select-input" placeholder="경리나라 비밀번호" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
             <label class="field-label">최근 접촉일</label>
             <input type="date" id="client-last-contact" class="select-input" />
           </div>
@@ -760,6 +814,28 @@
           <div class="form-col">
             <label class="field-label">다음 액션 예정일</label>
             <input type="date" id="client-next-action-at" class="select-input" />
+          </div>
+        </div>
+        <div class="clients-fund-section hidden" id="client-fund-fields">
+          <div class="form-row">
+            <div class="form-col">
+              <label class="field-label">인가번호</label>
+              <input type="text" id="client-approval-number" class="select-input" placeholder="인가번호" />
+            </div>
+            <div class="form-col">
+              <label class="field-label">설립등기일</label>
+              <input type="date" id="client-incorporation-date" class="select-input" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-col">
+              <label class="field-label">기금법인명</label>
+              <input type="text" id="client-fund-corporate-name" class="select-input" placeholder="기금법인명" />
+            </div>
+            <div class="form-col">
+              <label class="field-label">모회사명</label>
+              <input type="text" id="client-parent-company-name" class="select-input" placeholder="모회사명" />
+            </div>
           </div>
         </div>
         <div>
