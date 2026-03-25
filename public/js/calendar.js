@@ -107,14 +107,14 @@ const Calendar = (() => {
   }
 
   function getMonthKey(year, month) {
-    return `${activeCalendarView}:${year}-${String(month + 1).padStart(2, '0')}`;
+    return `${activeCalendarView}:${getStaffRequestKey()}:${year}-${String(month + 1).padStart(2, '0')}`;
   }
 
   function getWeekKey(baseDate = new Date(), tasksOnly = isWorkView()) {
     const start = new Date(baseDate);
     start.setHours(0, 0, 0, 0);
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    return `${activeCalendarView}:${tasksOnly ? 'tasks' : 'all'}:${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+    return `${activeCalendarView}:${getStaffRequestKey()}:${tasksOnly ? 'tasks' : 'all'}:${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
   }
 
   function getActiveCalendarView() {
@@ -137,6 +137,28 @@ const Calendar = (() => {
 
   function shouldShowStaffFilters() {
     return isWorkView() && hasTeamCalendarAccess();
+  }
+
+  function getRequestedStaffIds() {
+    if (!shouldShowStaffFilters()) return [];
+    const explicitIds = Array.from(selectedStaffIds).filter(Boolean);
+    if (explicitIds.length) return Array.from(new Set(explicitIds)).sort();
+    const currentUserId = Auth?.getUser?.()?.id;
+    return currentUserId ? [currentUserId] : [];
+  }
+
+  function getStaffRequestKey() {
+    if (!shouldShowStaffFilters()) return 'all';
+    const requestedIds = getRequestedStaffIds();
+    return requestedIds.length ? requestedIds.join(',') : 'self';
+  }
+
+  function appendSelectedStaffQuery(params) {
+    const requestedIds = getRequestedStaffIds();
+    if (requestedIds.length) {
+      params.set('selected_user_ids', requestedIds.join(','));
+    }
+    return params;
   }
 
   function resetTeamMemberState() {
@@ -289,8 +311,12 @@ const Calendar = (() => {
           selectedStaffIds.add(memberId);
         } else {
           selectedStaffIds.delete(memberId);
+          if (!selectedStaffIds.size) {
+            const currentUserId = Auth?.getUser?.()?.id;
+            if (currentUserId) selectedStaffIds.add(currentUserId);
+          }
         }
-        applyCalendarFilters();
+        void load({ forceWeekTasks: true });
       });
     });
   }
@@ -665,7 +691,7 @@ const Calendar = (() => {
       if (cachedMonth?.items?.length) {
         allEvents = cachedMonth.items.slice();
         applyCalendarFilters({ renderSidebar: false });
-      } else {
+      } else if (!allEvents.length) {
         allEvents = [];
         events = [];
         rebuildEventIndex();
@@ -677,7 +703,12 @@ const Calendar = (() => {
       void ensureHolidays(currentYear);
       if (!monthLoadPromise || monthLoadPromiseKey !== pendingMonthKey) {
         monthLoadPromiseKey = pendingMonthKey;
-        monthLoadPromise = Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}&calendar_type=${encodeURIComponent(getActiveCalendarView())}`)
+        const params = appendSelectedStaffQuery(new URLSearchParams({
+          year: String(currentYear),
+          month: String(currentMonth + 1),
+          calendar_type: getActiveCalendarView(),
+        }));
+        monthLoadPromise = Auth.request(`/events?${params.toString()}`)
           .then(loadedEvents => {
             if (requestToken !== monthLoadToken) return allEvents;
             allEvents = Array.isArray(loadedEvents) ? loadedEvents : [];
@@ -846,7 +877,12 @@ const Calendar = (() => {
     weekTasksPromiseKey = weekKey;
     weekTasksPromise = (async () => {
       try {
-        const loadedTasks = await Auth.request(`/events/week?date_str=${today}&calendar_type=${encodeURIComponent(calendarType)}&tasks_only=${tasksOnly ? 'true' : 'false'}`);
+        const params = appendSelectedStaffQuery(new URLSearchParams({
+          date_str: today,
+          calendar_type: calendarType,
+          tasks_only: tasksOnly ? 'true' : 'false',
+        }));
+        const loadedTasks = await Auth.request(`/events/week?${params.toString()}`);
         allWeekTasks = Array.isArray(loadedTasks) ? loadedTasks : [];
         weekTasksLoadedAt = Date.now();
         weekTasksCacheKey = weekKey;
