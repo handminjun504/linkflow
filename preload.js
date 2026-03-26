@@ -18,9 +18,15 @@ try {
   } catch {}
 }
 
+const DEFAULT_API_BASE = 'https://gyeongliteam.duckdns.org:8443/linkflow-web/api';
+const runtimeApiBase = (process.env.LINKFLOW_API_BASE || DEFAULT_API_BASE).trim();
+
+contextBridge.exposeInMainWorld('__LF_API_BASE__', runtimeApiBase);
+
 contextBridge.exposeInMainWorld('electronAPI', {
   webviewPreloadPath,
   getAppVersion: () => appVersion,
+  getApiBase: () => runtimeApiBase,
   setPasswordUser: (userId) => ipcRenderer.invoke('pw-set-user', userId),
   clearPasswordUser: () => ipcRenderer.invoke('pw-clear-user'),
   savePassword: (data) => ipcRenderer.invoke('pw-save', data),

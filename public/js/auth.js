@@ -7,8 +7,8 @@ const Auth = (() => {
   const API = (() => {
     const explicit = window.__LF_API_BASE__;
     if (explicit) return String(explicit).replace(/\/+$/, '');
-    if (location.origin.includes('bookmark-one-lemon.vercel.app')) return '/api';
-    return 'https://bookmark-one-lemon.vercel.app/api';
+    if (/^https?:/i.test(location.protocol)) return '/api';
+    return 'https://gyeongliteam.duckdns.org:8443/linkflow-web/api';
   })();
 
   function emitAuthChange() {
