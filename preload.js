@@ -1,25 +1,26 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const path = require('path');
-const fs = require('fs');
 
-let baseDir = __dirname;
-if (baseDir.includes('app.asar')) {
-  baseDir = baseDir.replace('app.asar', 'app.asar.unpacked');
+function getArg(prefix) {
+  const value = (process.argv || []).find((entry) => typeof entry === 'string' && entry.startsWith(prefix));
+  return value ? value.slice(prefix.length) : '';
 }
-const webviewPreloadPath = `file://${path.join(baseDir, 'preload-webview.js').replace(/\\/g, '/')}`;
 
-let appVersion = '';
-try {
-  const pkgPath = path.join(baseDir.replace('app.asar.unpacked', 'app.asar'), 'package.json');
-  appVersion = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).version || '';
-} catch {
-  try {
-    appVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8')).version || '';
-  } catch {}
+function toFileUrl(filePath) {
+  const normalized = String(filePath || '').replace(/\\/g, '/');
+  if (/^[A-Za-z]:\//.test(normalized)) {
+    return `file:///${normalized}`;
+  }
+  return `file://${normalized.startsWith('/') ? '' : '/'}${normalized}`;
 }
+
+const unpackedBaseDir = String(__dirname).includes('app.asar')
+  ? String(__dirname).replace('app.asar', 'app.asar.unpacked')
+  : String(__dirname);
+const webviewPreloadPath = toFileUrl(`${unpackedBaseDir.replace(/[\\/]+$/, '')}/preload-webview.js`);
 
 const DEFAULT_API_BASE = 'https://gyeongliteam.duckdns.org:8443/linkflow-web/api';
-const runtimeApiBase = (process.env.LINKFLOW_API_BASE || DEFAULT_API_BASE).trim();
+const runtimeApiBase = (getArg('--lf-api-base=') || process.env.LINKFLOW_API_BASE || DEFAULT_API_BASE).trim();
+const appVersion = getArg('--lf-app-version=');
 
 contextBridge.exposeInMainWorld('__LF_API_BASE__', runtimeApiBase);
 

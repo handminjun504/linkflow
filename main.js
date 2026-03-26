@@ -7,6 +7,7 @@ const { pathToFileURL } = require('url');
 
 const APP_URL = process.env.LINKFLOW_APP_URL
   || pathToFileURL(path.join(__dirname, 'public', 'index.html')).toString();
+const DEFAULT_API_BASE = 'https://gyeongliteam.duckdns.org:8443/linkflow-web/api';
 const RELEASES_URL = 'https://github.com/handminjun504/linkflow/releases/latest';
 let mainWindow = null;
 let tray = null;
@@ -801,6 +802,7 @@ function setupWindowEvents(win) {
 // ═══════ Main Window ═══════
 
 function createWindow() {
+  const runtimeApiBase = (process.env.LINKFLOW_API_BASE || DEFAULT_API_BASE).trim();
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -814,8 +816,13 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false,
       webviewTag: true,
       preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: [
+        `--lf-api-base=${runtimeApiBase}`,
+        `--lf-app-version=${app.getVersion()}`,
+      ],
     },
   });
 
@@ -894,6 +901,7 @@ function createWindow() {
 // ═══════ Detached Window ═══════
 
 function createDetachedWindow(url, authData) {
+  const runtimeApiBase = (process.env.LINKFLOW_API_BASE || DEFAULT_API_BASE).trim();
   const win = new BrowserWindow({
     width: 1100,
     height: 800,
@@ -906,8 +914,13 @@ function createDetachedWindow(url, authData) {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false,
       webviewTag: true,
       preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: [
+        `--lf-api-base=${runtimeApiBase}`,
+        `--lf-app-version=${app.getVersion()}`,
+      ],
     },
   });
 
