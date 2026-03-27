@@ -171,7 +171,7 @@
               <div class="clients-detail-actions">
                 <button class="btn btn-outline btn-sm" id="btn-edit-client"><i class="ri-pencil-line"></i> 편집</button>
                 <button class="btn btn-outline btn-sm" id="btn-client-create-event"><i class="ri-calendar-event-line"></i> 일정 생성</button>
-                <button class="btn btn-danger btn-sm" id="btn-hide-client"><i class="ri-eye-off-line"></i> 종료 처리</button>
+                <button class="btn btn-danger btn-sm" id="btn-delete-client"><i class="ri-delete-bin-line"></i> 삭제</button>
               </div>
             </div>
 
@@ -208,26 +208,15 @@
               </div>
               <div class="form-row">
                 <div class="form-col">
-                  <label class="field-label">최근 접촉일</label>
-                  <input type="text" id="client-detail-last-contact" class="select-input client-readonly-input" readonly />
-                </div>
-                <div class="form-col">
-                  <label class="field-label">다음 액션 제목</label>
-                  <input type="text" id="client-detail-next-action-title" class="select-input client-readonly-input" readonly />
-                </div>
-                <div class="form-col">
-                  <label class="field-label">다음 액션 예정일</label>
-                  <input type="text" id="client-detail-next-action-at" class="select-input client-readonly-input" readonly />
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-col">
                   <label class="field-label">코드</label>
                   <input type="text" id="client-detail-client-code" class="select-input client-readonly-input" readonly />
                 </div>
                 <div class="form-col">
                   <label class="field-label">사업자번호</label>
-                  <input type="text" id="client-detail-business-number" class="select-input client-readonly-input" readonly />
+                  <div class="client-copy-field">
+                    <input type="text" id="client-detail-business-number" class="select-input client-readonly-input" readonly />
+                    <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-client-business-number"><i class="ri-file-copy-line"></i> 복사</button>
+                  </div>
                 </div>
                 <div class="form-col">
                   <label class="field-label">대표</label>
@@ -237,13 +226,17 @@
               <div class="form-row">
                 <div class="form-col">
                   <label class="field-label">경리나라 아이디</label>
-                  <input type="text" id="client-detail-gyeongli-id" class="select-input client-readonly-input" readonly />
+                  <div class="client-copy-field">
+                    <input type="text" id="client-detail-gyeongli-id" class="select-input client-readonly-input" readonly />
+                    <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-client-gyeongli-id"><i class="ri-file-copy-line"></i> 복사</button>
+                  </div>
                 </div>
                 <div class="form-col">
                   <label class="field-label">경리나라 비밀번호</label>
                   <div class="client-password-field">
                     <input type="password" id="client-detail-gyeongli-password" class="select-input client-readonly-input" readonly />
                     <button type="button" class="btn btn-ghost btn-sm" id="btn-client-password-toggle">보기</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-client-gyeongli-password"><i class="ri-file-copy-line"></i> 복사</button>
                   </div>
                 </div>
               </div>
@@ -275,15 +268,7 @@
               </div>
             </div>
 
-            <div class="clients-summary-grid clients-summary-grid-3">
-              <div class="client-summary-card">
-                <span>다음 액션</span>
-                <strong id="client-detail-next-action-summary">미정</strong>
-              </div>
-              <div class="client-summary-card">
-                <span>최근 접촉</span>
-                <strong id="client-detail-last-contact-summary">기록 없음</strong>
-              </div>
+            <div class="clients-summary-grid clients-summary-grid-1">
               <div class="client-summary-card">
                 <span>동기화 원본</span>
                 <strong id="client-detail-source-summary">Google Sheet</strong>
@@ -809,20 +794,6 @@
           <div class="form-col">
             <label class="field-label">경리나라 비밀번호</label>
             <input type="text" id="client-gyeongli-password" class="select-input" placeholder="경리나라 비밀번호" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-col">
-            <label class="field-label">최근 접촉일</label>
-            <input type="date" id="client-last-contact" class="select-input" />
-          </div>
-          <div class="form-col">
-            <label class="field-label">다음 액션 제목</label>
-            <input type="text" id="client-next-action-title" class="select-input" placeholder="다음 해야 할 일" />
-          </div>
-          <div class="form-col">
-            <label class="field-label">다음 액션 예정일</label>
-            <input type="date" id="client-next-action-at" class="select-input" />
           </div>
         </div>
         <div class="clients-fund-section hidden" id="client-fund-fields">

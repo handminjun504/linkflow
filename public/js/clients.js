@@ -1,6 +1,7 @@
 const Clients = (() => {
   const CLIENTS_CACHE_TTL = 60 * 1000;
   const CLIENT_SYNC_TTL = 5 * 60 * 1000;
+  const CLIENT_SCHEMA_CACHE_TTL = 5 * 60 * 1000;
   const TIMELINE_ICONS = {
     bookmark: 'ri-bookmark-3-line',
     memo: 'ri-sticky-note-line',
@@ -25,9 +26,11 @@ const Clients = (() => {
   let clientsLoadedAt = 0;
   let lastSyncAttemptAt = 0;
   let clientsLoadPromise = null;
+  let schemaLoadPromise = null;
   let syncPromise = null;
   let persistStateTimer = null;
   let revealPassword = false;
+  let schemaLoadedAt = 0;
   let schemaMeta = {
     fixed_fields: [],
     extra_fields: [],
@@ -51,7 +54,7 @@ const Clients = (() => {
     document.getElementById('btn-client-create-event')?.addEventListener('click', () => {
       if (selectedClientId) openActionEvent(selectedClientId);
     });
-    document.getElementById('btn-hide-client')?.addEventListener('click', hideSelectedClient);
+    document.getElementById('btn-delete-client')?.addEventListener('click', deleteSelectedClient);
     document.getElementById('client-form')?.addEventListener('submit', saveClient);
     document.getElementById('client-category')?.addEventListener('change', syncClientCategoryFields);
     document.getElementById('btn-link-client-shortcut')?.addEventListener('click', linkSelectedShortcut);
@@ -70,6 +73,15 @@ const Clients = (() => {
       renderStaffFilter();
     });
     document.getElementById('btn-client-password-toggle')?.addEventListener('click', togglePasswordVisibility);
+    document.getElementById('btn-copy-client-gyeongli-id')?.addEventListener('click', () => {
+      void copyClientField('gyeongli_id');
+    });
+    document.getElementById('btn-copy-client-gyeongli-password')?.addEventListener('click', () => {
+      void copyClientField('gyeongli_password');
+    });
+    document.getElementById('btn-copy-client-business-number')?.addEventListener('click', () => {
+      void copyClientField('business_number');
+    });
 
     document.addEventListener('lf:clients-changed-request', () => {
       void load({ force: true, silent: true });
@@ -118,34 +130,25 @@ const Clients = (() => {
     if (clientsLoadPromise) return clientsLoadPromise;
 
     clientsLoadPromise = (async () => {
-      if (!options.skipSync && shouldAutoSync(force)) {
+      if (options.autoSync === true && !options.skipSync && shouldAutoSync(force)) {
         await runSync({ silent: options.silent });
       }
 
       try {
-        const [rows, schema] = await Promise.all([
-          Auth.request('/clients'),
-          Auth.request('/clients/schema').catch(() => null),
-        ]);
-
+        const rows = await Auth.request('/clients');
         clients = Array.isArray(rows) ? rows.map(normalizeClient) : [];
         clientsLoadedAt = Date.now();
         teamAccessRequired = false;
-        if (schema && typeof schema === 'object') {
-          schemaMeta = {
-            ...schemaMeta,
-            ...schema,
-            last_error: schema.last_error || schemaMeta.last_error,
-          };
-        }
 
         ensureSelection(options.selectedClientId);
         render();
         notifyClientsChanged();
 
         if (selectedClientId) {
-          await selectClient(selectedClientId, { silentList: true });
+          void selectClient(selectedClientId, { silentList: true });
         }
+
+        void loadSchema({ force });
 
         return clients;
       } catch (err) {
@@ -208,7 +211,9 @@ const Clients = (() => {
     }
     const result = await runSync({ silent: false, manual: true });
     if (!result) return;
+    schemaLoadedAt = 0;
     await load({ force: true, skipSync: true, silent: false, selectedClientId });
+    void loadSchema({ force: true });
     UI.showToast('거래처 정보를 시트에서 다시 불러왔습니다', 'success');
   }
 
@@ -296,6 +301,36 @@ const Clients = (() => {
     return (Date.now() - lastSyncAttemptAt) > CLIENT_SYNC_TTL;
   }
 
+  async function loadSchema(options = {}) {
+    const force = !!options.force;
+    const isFresh = schemaLoadedAt > 0 && (Date.now() - schemaLoadedAt) < CLIENT_SCHEMA_CACHE_TTL;
+    if (!force && isFresh) return schemaMeta;
+    if (schemaLoadPromise) return schemaLoadPromise;
+
+    schemaLoadPromise = (async () => {
+      try {
+        const schema = await Auth.request('/clients/schema');
+        if (schema && typeof schema === 'object') {
+          schemaMeta = {
+            ...schemaMeta,
+            ...schema,
+            last_error: schema.last_error || schemaMeta.last_error,
+          };
+          schemaLoadedAt = Date.now();
+          renderSyncState();
+          renderDetail();
+        }
+        return schemaMeta;
+      } catch (_err) {
+        return schemaMeta;
+      } finally {
+        schemaLoadPromise = null;
+      }
+    })();
+
+    return schemaLoadPromise;
+  }
+
   function ensureSelection(forcedId = null) {
     const nextId = forcedId || selectedClientId;
     if (!clients.length) {
@@ -376,7 +411,7 @@ const Clients = (() => {
       'btn-sync-clients',
       'btn-edit-client',
       'btn-client-create-event',
-      'btn-hide-client',
+      'btn-delete-client',
       'btn-link-client-shortcut',
       'client-shortcut-select',
     ].forEach(id => {
@@ -466,9 +501,6 @@ const Clients = (() => {
     setValue('client-detail-company-contact', client.company_contact_name || '');
     setValue('client-detail-phone', formatPhoneForDisplay(client.phone) || '');
     setValue('client-detail-email', client.email || '');
-    setValue('client-detail-last-contact', client.last_contact_at || '');
-    setValue('client-detail-next-action-title', client.next_action_title || '');
-    setValue('client-detail-next-action-at', client.next_action_at || '');
     setValue('client-detail-client-code', client.client_code || '');
     setValue('client-detail-business-number', client.business_number || '');
     setValue('client-detail-ceo-name', client.ceo_name || '');
@@ -481,6 +513,9 @@ const Clients = (() => {
 
     const passwordInput = document.getElementById('client-detail-gyeongli-password');
     const passwordButton = document.getElementById('btn-client-password-toggle');
+    const gyeongliIdCopyButton = document.getElementById('btn-copy-client-gyeongli-id');
+    const passwordCopyButton = document.getElementById('btn-copy-client-gyeongli-password');
+    const businessNumberCopyButton = document.getElementById('btn-copy-client-business-number');
     if (passwordInput) {
       passwordInput.value = client.gyeongli_password || '';
       passwordInput.type = revealPassword ? 'text' : 'password';
@@ -489,17 +524,10 @@ const Clients = (() => {
       passwordButton.disabled = !client.gyeongli_password;
       passwordButton.textContent = revealPassword ? '숨기기' : '보기';
     }
+    if (gyeongliIdCopyButton) gyeongliIdCopyButton.disabled = !client.gyeongli_id;
+    if (passwordCopyButton) passwordCopyButton.disabled = !client.gyeongli_password;
+    if (businessNumberCopyButton) businessNumberCopyButton.disabled = !normalizeBusinessNumberForCopy(client.business_number);
 
-    setText(
-      'client-detail-next-action-summary',
-      client.next_action_title
-        ? `${client.next_action_title}${client.next_action_at ? ` · ${formatDate(client.next_action_at)}` : ''}`
-        : '미정'
-    );
-    setText(
-      'client-detail-last-contact-summary',
-      formatDate(client.last_contact_at) || '기록 없음'
-    );
     setText(
       'client-detail-source-summary',
       client.sheet_row_number != null
@@ -630,22 +658,28 @@ const Clients = (() => {
     `).join('');
   }
 
-  async function hideSelectedClient() {
+  async function deleteSelectedClient() {
     if (teamAccessRequired || !hasClientTeamAccess()) {
       UI.showToast(CLIENT_TEAM_REQUIRED_MESSAGE, 'error');
       return;
     }
     if (!selectedClientId) return;
+    const client = selectedClient || clients.find(item => item.id === selectedClientId) || null;
+    const isSheetClient = Boolean(client?.sheet_row_number != null);
+    const confirmTitle = isSheetClient ? '거래처 삭제' : '거래처 완전 삭제';
+    const confirmBody = isSheetClient
+      ? '시트 원본 거래처라 Google Sheet에서는 삭제되지 않고, LinkFlow 화면에서만 숨김 처리됩니다. 계속할까요?'
+      : '직접 등록한 거래처를 삭제합니다. 연결된 일정/북마크/메모의 거래처 연결도 함께 해제됩니다. 계속할까요?';
     const ok = await UI.confirm(
-      '거래처 종료 처리',
-      'Google Sheet는 수정되지 않고, LinkFlow 화면에서만 숨김 처리됩니다. 계속하시겠습니까?'
+      confirmTitle,
+      confirmBody
     );
     if (!ok) return;
 
     try {
-      await Auth.request(`/clients/${selectedClientId}/hide`, { method: 'POST' });
+      const response = await Auth.request(`/clients/${selectedClientId}`, { method: 'DELETE' });
       const hiddenId = selectedClientId;
-      clients = clients.filter(client => client.id !== hiddenId);
+      clients = clients.filter(item => item.id !== hiddenId);
       selectedClientId = null;
       selectedClient = null;
       timelineItems = [];
@@ -656,7 +690,12 @@ const Clients = (() => {
       if (selectedClientId) {
         await selectClient(selectedClientId, { silentList: true });
       }
-      UI.showToast('거래처를 LinkFlow 목록에서 숨겼습니다', 'success');
+      UI.showToast(
+        response?.mode === 'deleted'
+          ? '거래처를 삭제했습니다'
+          : '거래처를 LinkFlow 목록에서 숨겼습니다',
+        'success'
+      );
     } catch (err) {
       UI.showToast(err.message, 'error');
     }
@@ -901,6 +940,36 @@ const Clients = (() => {
     renderDetail();
   }
 
+  async function copyClientField(field) {
+    const client = selectedClient || clients.find(item => item.id === selectedClientId) || null;
+    if (!client) return;
+
+    let text = '';
+    let successLabel = '복사했습니다';
+    if (field === 'gyeongli_id') {
+      text = client.gyeongli_id || '';
+      successLabel = '경리나라 아이디를 복사했습니다';
+    } else if (field === 'gyeongli_password') {
+      text = client.gyeongli_password || '';
+      successLabel = '경리나라 비밀번호를 복사했습니다';
+    } else if (field === 'business_number') {
+      text = normalizeBusinessNumberForCopy(client.business_number);
+      successLabel = '사업자번호를 복사했습니다';
+    }
+
+    if (!text) {
+      UI.showToast('복사할 값이 없습니다', 'error');
+      return;
+    }
+
+    try {
+      await writeClipboardText(text);
+      UI.showToast(successLabel, 'success');
+    } catch (err) {
+      UI.showToast(err.message || '복사에 실패했습니다', 'error');
+    }
+  }
+
   function syncClientIntoList(client) {
     const normalized = normalizeClient(client);
     const index = clients.findIndex(item => item.id === normalized.id);
@@ -995,6 +1064,29 @@ const Clients = (() => {
     if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
     if (digits.length === 9 && digits.startsWith('02')) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
     return value || '';
+  }
+
+  function normalizeBusinessNumberForCopy(value) {
+    return String(value || '').replace(/\D/g, '');
+  }
+
+  async function writeClipboardText(text) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', 'readonly');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    if (!copied) throw new Error('클립보드 복사에 실패했습니다');
   }
 
   function todayString() {
@@ -1101,9 +1193,6 @@ const Clients = (() => {
     setValue('client-email', client.email);
     setValue('client-gyeongli-id', client.gyeongli_id);
     setValue('client-gyeongli-password', client.gyeongli_password);
-    setValue('client-last-contact', client.last_contact_at);
-    setValue('client-next-action-title', client.next_action_title);
-    setValue('client-next-action-at', client.next_action_at);
     setValue('client-approval-number', client.approval_number);
     setValue('client-incorporation-date', client.incorporation_registry_date);
     setValue('client-fund-corporate-name', client.fund_corporate_name);
@@ -1125,9 +1214,6 @@ const Clients = (() => {
       phone: normalizeText(document.getElementById('client-phone')?.value) || null,
       email: normalizeText(document.getElementById('client-email')?.value) || null,
       memo: normalizeMultilineText(document.getElementById('client-memo')?.value) || null,
-      last_contact_at: normalizeText(document.getElementById('client-last-contact')?.value) || null,
-      next_action_title: normalizeText(document.getElementById('client-next-action-title')?.value) || null,
-      next_action_at: normalizeText(document.getElementById('client-next-action-at')?.value) || null,
       client_code: normalizeText(document.getElementById('client-code')?.value) || null,
       business_number: normalizeText(document.getElementById('client-business-number')?.value) || null,
       ceo_name: normalizeText(document.getElementById('client-ceo-name')?.value) || null,

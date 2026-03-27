@@ -18,7 +18,7 @@ const unpackedBaseDir = String(__dirname).includes('app.asar')
   : String(__dirname);
 const webviewPreloadPath = toFileUrl(`${unpackedBaseDir.replace(/[\\/]+$/, '')}/preload-webview.js`);
 
-const DEFAULT_API_BASE = 'https://gyeongliteam.duckdns.org:8443/linkflow-web/api';
+const DEFAULT_API_BASE = 'https://gyeongliteam.duckdns.org:8443/linkflow/api';
 const runtimeApiBase = (getArg('--lf-api-base=') || process.env.LINKFLOW_API_BASE || DEFAULT_API_BASE).trim();
 const appVersion = getArg('--lf-app-version=');
 

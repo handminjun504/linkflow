@@ -30,7 +30,7 @@ const Calendar = (() => {
     const explicit = window.__LF_API_BASE__;
     if (explicit) return String(explicit).replace(/\/+$/, '');
     if (/^https?:/i.test(location.protocol)) return '/api';
-    return 'https://gyeongliteam.duckdns.org:8443/linkflow-web/api';
+    return 'https://gyeongliteam.duckdns.org:8443/linkflow/api';
   })();
 
   const DEFAULT_EVENT_COLOR = '#111111';

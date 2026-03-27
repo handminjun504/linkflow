@@ -8,7 +8,7 @@ const Auth = (() => {
     const explicit = window.__LF_API_BASE__;
     if (explicit) return String(explicit).replace(/\/+$/, '');
     if (/^https?:/i.test(location.protocol)) return '/api';
-    return 'https://gyeongliteam.duckdns.org:8443/linkflow-web/api';
+    return 'https://gyeongliteam.duckdns.org:8443/linkflow/api';
   })();
 
   function emitAuthChange() {
@@ -145,6 +145,11 @@ const Auth = (() => {
     _lastActivity = Date.now();
   }
 
+  function normalizePinValue(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+  }
+
   function showLockScreen() {
     if (!_user?.pin_code) return;
     const el = document.getElementById('lock-screen');
@@ -156,7 +161,7 @@ const Auth = (() => {
 
   function tryUnlock(pin) {
     if (!_user?.pin_code) return true;
-    return pin === _user.pin_code;
+    return normalizePinValue(pin) === normalizePinValue(_user.pin_code);
   }
 
   return {

@@ -681,7 +681,6 @@
       renderCategoryTabs();
       renderBookmarks();
       scheduleHealthCheck({ force: true, delay: 250 });
-      scheduleClientsWarmup(120);
     } catch (e) {
       UI.showToast('데이터 로딩 실패: ' + e.message, 'error');
     }
@@ -1162,8 +1161,10 @@
     UI.showPanel('admin-panel');
     try {
       const [users, teams] = await Promise.all([
-        Auth.request('/admin/users'),
-        Auth.request('/admin/teams').catch(() => []),
+        Auth.request('/admin/users').catch(() => Auth.request('/users')),
+        Auth.request('/admin/teams')
+          .catch(() => Auth.request('/teams'))
+          .catch(() => []),
       ]);
       adminUsers = Array.isArray(users) ? users : [];
       adminTeams = Array.isArray(teams) ? teams : [];
@@ -1173,6 +1174,11 @@
 
   function renderAdminUsers(users, teams = adminTeams) {
     const list = document.getElementById('admin-user-list');
+    if (!list) return;
+    if (!users.length) {
+      list.innerHTML = '<div class="task-empty"><i class="ri-user-line"></i><p>표시할 사용자가 없습니다</p></div>';
+      return;
+    }
     const teamNameById = new Map((teams || []).map(team => [team.id, team.name]));
     list.innerHTML = users.map(u => `
       <div class="user-item">

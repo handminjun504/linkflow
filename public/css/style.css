@@ -1212,8 +1212,16 @@ textarea.select-input {
   align-items: stretch;
 }
 
+.client-copy-field {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.client-copy-field .select-input,
 .client-password-field .select-input {
   flex: 1;
+  min-width: 0;
 }
 
 .clients-summary-grid {
@@ -1245,6 +1253,10 @@ textarea.select-input {
 
 .clients-summary-grid-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.clients-summary-grid-1 {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .clients-extra-section,

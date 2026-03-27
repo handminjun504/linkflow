@@ -7,7 +7,7 @@ const { pathToFileURL } = require('url');
 
 const APP_URL = process.env.LINKFLOW_APP_URL
   || pathToFileURL(path.join(__dirname, 'public', 'index.html')).toString();
-const DEFAULT_API_BASE = 'https://gyeongliteam.duckdns.org:8443/linkflow-web/api';
+const DEFAULT_API_BASE = 'https://gyeongliteam.duckdns.org:8443/linkflow/api';
 const RELEASES_URL = 'https://github.com/handminjun504/linkflow/releases/latest';
 let mainWindow = null;
 let tray = null;
